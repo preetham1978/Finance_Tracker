@@ -1,0 +1,35 @@
+# Built application files
+*.apk
+*.aab
+*.ap_
+*.aar
+
+# Gradle files
+.gradle/
+build/
+app/build/
+
+# Local configuration file (contains SDK path, machine-specific)
+local.properties
+
+# Android Studio / IntelliJ
+.idea/
+*.iml
+.kotlin/
+captures/
+.externalNativeBuild/
+.cxx/
+
+# Firebase config - contains project-specific keys; kept out of git and
+# supplied via a GitHub Actions secret in CI (see android-tests.yml) and
+# manually on each developer's machine. See README for how to obtain it.
+app/google-services.json
+
+# Environment secrets (GEMINI_API_KEY etc.) - .env.example is the template,
+# real .env files are never committed.
+.env
+!.env.example
+
+# OS files
+.DS_Store
+Thumbs.db
