@@ -1,0 +1,54 @@
+rules_version = '2';
+
+// Security rules for Vantage Finance's Firestore data.
+//
+// The app currently uses two different document-ID schemes under the same "users" collection,
+// which is worth knowing before editing these rules:
+//   - users/{uid}                          - profile doc (name, mobile), keyed by the Firebase
+//                                             Auth UID. Written by EditProfileDialog.kt and
+//                                             LoginScreen.kt.
+//   - users/{sanitizedEmail}/transactions/* - the cloud backup of the local transaction ledger,
+//                                             keyed by CloudSyncManager.sanitizeEmail(email)
+//                                             instead of the UID. Written by CloudSyncManager.kt.
+// That inconsistency is pre-existing in the app, not introduced here. These rules secure both
+// path shapes as they exist today. If CloudSyncManager is ever migrated to store transactions
+// under users/{uid}/transactions instead, delete the emailKey-based match block below and rely
+// on the uid-based one covering both.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    // Mirrors CloudSyncManager.sanitizeEmail() in the Kotlin app exactly - keep both in sync
+    // if that function ever changes.
+    function sanitizeEmail(email) {
+      return email.lower()
+        .replace('@', '_at_')
+        .replace('\\.', '_dot_')
+        .replace('#', '_')
+        .replace('\\$', '_')
+        .replace('\\[', '_')
+        .replace('\\]', '_');
+    }
+
+    // Profile document, keyed by Firebase Auth UID.
+    match /users/{uid} {
+      allow read, write: if isSignedIn() && request.auth.uid == uid;
+    }
+
+    // Transaction backup, keyed by a sanitized version of the signed-in user's email.
+    match /users/{emailKey}/transactions/{transactionId} {
+      allow read, write: if isSignedIn()
+        && request.auth.token.email != null
+        && sanitizeEmail(request.auth.token.email) == emailKey;
+    }
+
+    // Deny everything else by default - safer than an implicit allow for any path we haven't
+    // explicitly reasoned about above.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
