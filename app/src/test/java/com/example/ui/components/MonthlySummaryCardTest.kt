@@ -4,7 +4,6 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
-import androidx.compose.ui.test.performScrollTo
 import com.example.data.Transaction
 import org.junit.Assert.assertEquals
 import org.junit.Rule
@@ -25,6 +24,11 @@ import org.robolectric.annotation.Config
  *
  * A fixed timestamp is used for every transaction so all fixtures land in the same
  * calendar month regardless of when the test suite actually runs.
+ *
+ * No performScrollTo() calls here deliberately: unlike AddTransactionSheet/LoginScreen,
+ * MonthlySummaryCard's root Column has no verticalScroll/LazyColumn at all, so none of its
+ * content has a scrollable ancestor - calling performScrollTo() on any node here throws
+ * "Semantic Node has no parent layout with a Scroll SemanticsAction" instead of no-op'ing.
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34], qualifiers = "w411dp-h891dp")
@@ -52,13 +56,13 @@ class MonthlySummaryCardTest {
         composeTestRule.onNodeWithTag("monthly_summary_card").assertExists()
 
         // Income 20000, expense 3000+2000=5000, net savings 15000 -> savings rate 75%.
-        composeTestRule.onNodeWithText("₹20,000.00").performScrollTo().assertExists()
-        composeTestRule.onNodeWithText("₹5,000.00").performScrollTo().assertExists()
-        composeTestRule.onNodeWithText("₹15,000.00 (75%)").performScrollTo().assertExists()
+        composeTestRule.onNodeWithText("₹20,000.00").assertExists()
+        composeTestRule.onNodeWithText("₹5,000.00").assertExists()
+        composeTestRule.onNodeWithText("₹15,000.00 (75%)").assertExists()
 
         // Top spending categories, sorted by amount descending: Food (60%), Shopping (40%).
-        composeTestRule.onNodeWithText("Food (60%)").performScrollTo().assertExists()
-        composeTestRule.onNodeWithText("Shopping (40%)").performScrollTo().assertExists()
+        composeTestRule.onNodeWithText("Food (60%)").assertExists()
+        composeTestRule.onNodeWithText("Shopping (40%)").assertExists()
     }
 
     @Test
@@ -73,6 +77,6 @@ class MonthlySummaryCardTest {
         val zeroValueNodes = composeTestRule.onAllNodesWithText("₹0.00")
             .fetchSemanticsNodes(atLeastOneRootRequired = false)
         assertEquals(2, zeroValueNodes.size)
-        composeTestRule.onNodeWithText("No expenses logged for this month.").performScrollTo().assertExists()
+        composeTestRule.onNodeWithText("No expenses logged for this month.").assertExists()
     }
 }

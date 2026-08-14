@@ -47,8 +47,11 @@ class DonutChartTest {
         }
         composeTestRule.waitForIdle()
 
-        // Center label: total of the breakdown.
-        composeTestRule.onNodeWithText("₹1,000.00").performScrollTo().assertExists()
+        // Center label: total of the breakdown. It sits outside the legend's
+        // LazyVerticalGrid (the only scrollable container in this composable), so unlike the
+        // legend rows below, it has no scrollable ancestor - performScrollTo() would throw
+        // "Semantic Node has no parent layout with a Scroll SemanticsAction" here.
+        composeTestRule.onNodeWithText("₹1,000.00").assertExists()
 
         // Legend rows: category name plus "amount (percent%)".
         composeTestRule.onNodeWithText("Food").performScrollTo().assertExists()
