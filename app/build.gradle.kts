@@ -1,3 +1,12 @@
+import java.util.Properties
+import java.io.FileInputStream
+
+val keystorePropertiesFile = rootProject.file("keystore.properties")
+val keystoreProperties = Properties()
+if (keystorePropertiesFile.exists()) {
+    keystoreProperties.load(FileInputStream(keystorePropertiesFile))
+}
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
@@ -7,29 +16,35 @@ plugins {
     alias(libs.plugins.firebase.crashlytics)
     id("org.gradle.test-retry")
 }
-
 android {
     namespace = "com.example"
     compileSdk = 34
-
     defaultConfig {
         applicationId = "com.aistudio.financetracker.vkqywz"
         minSdk = 24
         targetSdk = 34
         versionCode = 1
         versionName = "1.0"
-
         vectorDrawables {
             useSupportLibrary = true
         }
-
         val geminiKey = System.getenv("GEMINI_API_KEY") ?: ""
         buildConfigField("String", "GEMINI_API_KEY", "\"$geminiKey\"") // force rebuild
     }
-
+    signingConfigs {
+        create("release") {
+            if (keystorePropertiesFile.exists()) {
+                storeFile = rootProject.file(keystoreProperties.getProperty("storeFile"))
+                storePassword = keystoreProperties.getProperty("storePassword")
+                keyAlias = keystoreProperties.getProperty("keyAlias")
+                keyPassword = keystoreProperties.getProperty("keyPassword")
+            }
+        }
+    }
     buildTypes {
         release {
             isMinifyEnabled = false
+            signingConfig = signingConfigs.getByName("release")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -62,7 +77,6 @@ android {
         }
     }
 }
-
 dependencies {
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
@@ -73,19 +87,16 @@ dependencies {
     implementation(libs.androidx.ui.tooling.preview)
     implementation(libs.androidx.material3)
     implementation(libs.androidx.material.icons.extended)
-
     // Room Database
     implementation(libs.androidx.room.runtime)
     implementation(libs.androidx.room.ktx)
     ksp(libs.androidx.room.compiler)
-
     // Networking & JSON
     implementation(libs.retrofit)
     implementation(libs.retrofit.converter.gson)
     implementation(libs.okhttp)
     implementation(libs.okhttp.logging)
     implementation(libs.gson)
-
     // Firebase
     implementation(platform(libs.firebase.bom))
     implementation(libs.firebase.firestore)
@@ -94,7 +105,6 @@ dependencies {
     implementation(libs.play.services.mlkit.document.scanner)
     implementation(libs.firebase.analytics)
     implementation(libs.firebase.crashlytics)
-
     testImplementation(libs.junit)
     testImplementation(libs.robolectric)
     testImplementation(libs.androidx.test.junit)
@@ -103,7 +113,6 @@ dependencies {
     testImplementation(libs.androidx.ui.test.junit4)
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.7.3")
 }
-
 // Retry a failed unit test up to twice before letting it fail the build. This exists purely
 // to absorb the known, non-deterministic "Firebase Background Thread" flakiness under
 // Robolectric (see EditProfileDialogTest.kt / LoginValidationTest.kt doc comments) - it does
