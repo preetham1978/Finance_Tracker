@@ -11,15 +11,10 @@ import androidx.compose.ui.unit.sp
 
 @Composable
 fun EmptyState(text: String, icon: String = "💸") {
-    Card(
+    BrutalCard(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 16.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface
-        ),
-        shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+            .padding(vertical = 16.dp)
     ) {
         Column(
             modifier = Modifier

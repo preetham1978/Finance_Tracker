@@ -105,15 +105,11 @@ fun MonthlySummaryCard(
         0.0
     }
 
-    Card(
+    BrutalCard(
         modifier = modifier
             .fillMaxWidth()
             .testTag("monthly_summary_card"),
-        shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface
-        ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        cornerRadius = 20.dp
     ) {
         Column(
             modifier = Modifier
@@ -228,12 +224,9 @@ fun MonthlySummaryCard(
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 // Income Mini-Card
-                Card(
+                BrutalCard(
                     modifier = Modifier.weight(1f),
-                    colors = CardDefaults.cardColors(
-                        containerColor = Color(0xFFE8F5E9).copy(alpha = 0.4f)
-                    ),
-                    shape = RoundedCornerShape(16.dp)
+                    backgroundColor = Color(0xFFE8F5E9)
                 ) {
                     Row(
                         modifier = Modifier
@@ -276,12 +269,9 @@ fun MonthlySummaryCard(
                 }
 
                 // Expense Mini-Card
-                Card(
+                BrutalCard(
                     modifier = Modifier.weight(1f),
-                    colors = CardDefaults.cardColors(
-                        containerColor = Color(0xFFFFEBEE).copy(alpha = 0.4f)
-                    ),
-                    shape = RoundedCornerShape(16.dp)
+                    backgroundColor = Color(0xFFFFEBEE)
                 ) {
                     Row(
                         modifier = Modifier

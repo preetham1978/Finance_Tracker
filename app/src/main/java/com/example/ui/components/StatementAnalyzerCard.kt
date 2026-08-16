@@ -83,15 +83,11 @@ fun StatementAnalyzerCard(
         }
     }
 
-    Card(
+    BrutalCard(
         modifier = modifier
             .fillMaxWidth()
             .testTag("statement_analyzer_card"),
-        shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface
-        ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        cornerRadius = 20.dp
     ) {
         Column(
             modifier = Modifier

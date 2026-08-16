@@ -33,13 +33,9 @@ fun DonutChart(
     modifier: Modifier = Modifier
 ) {
     if (categoryBreakdown.isEmpty()) {
-        Card(
+        BrutalCard(
             modifier = modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(24.dp),
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surface
-            ),
-            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+            cornerRadius = 20.dp
         ) {
             Box(
                 modifier = Modifier
@@ -105,13 +101,9 @@ fun DonutChart(
         label = "donut_chart_animation"
     )
 
-    Card(
+    BrutalCard(
         modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface
-        ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+        cornerRadius = 20.dp
     ) {
         Column(
             modifier = Modifier

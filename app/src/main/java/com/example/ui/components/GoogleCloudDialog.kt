@@ -261,11 +261,9 @@ fun LoggedInCloudPanel(
         }
 
         // Ledger Statistics Card
-        Card(
+        BrutalCard(
             modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)),
-            shape = RoundedCornerShape(16.dp),
-            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+            backgroundColor = MaterialTheme.colorScheme.surfaceVariant
         ) {
             Column(
                 modifier = Modifier.padding(16.dp),
@@ -419,10 +417,10 @@ fun SignInCloudPanel(
 
         // Status Banner if any
         if (statusMsg != null) {
-            Card(
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f)),
+            BrutalCard(
+                backgroundColor = MaterialTheme.colorScheme.secondaryContainer,
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(12.dp)
+                cornerRadius = 12.dp
             ) {
                 Row(
                     modifier = Modifier.padding(12.dp),

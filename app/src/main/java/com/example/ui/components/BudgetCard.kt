@@ -36,12 +36,9 @@ fun BudgetCard(
 
     val isOverBudget = spent > limit
 
-    Card(
+    BrutalCard(
         modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
-        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.1f))
+        cornerRadius = 16.dp
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(

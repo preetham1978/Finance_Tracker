@@ -48,13 +48,10 @@ fun CreditCardDashboardCard(
         )
     )
 
-    Card(
+    BrutalCard(
         modifier = modifier,
-        shape = RoundedCornerShape(28.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = Color.Transparent
-        ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+        backgroundColor = Color.Transparent,
+        cornerRadius = 20.dp
     ) {
         Column(
             modifier = Modifier

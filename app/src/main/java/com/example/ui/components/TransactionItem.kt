@@ -65,17 +65,15 @@ fun TransactionItem(
         sdf.format(Date(transaction.timestamp))
     }
 
-    Card(
+    // Slightly subtler shadow offset than section-level cards since this
+    // repeats many times in a scrollable list.
+    BrutalCard(
         modifier = modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
             .clickable { onEdit() }
             .testTag("transaction_item_${transaction.id}"),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface
-        ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
-        shape = RoundedCornerShape(16.dp)
+        cornerRadius = 14.dp,
+        shadowOffset = 4.dp
     ) {
         Row(
             modifier = Modifier

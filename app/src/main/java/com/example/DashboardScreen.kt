@@ -289,10 +289,21 @@ fun DashboardScreen(
             )
         },
         bottomBar = {
-            NavigationBar(
-                containerColor = MaterialTheme.colorScheme.surface,
-                tonalElevation = 8.dp
-            ) {
+            Column {
+                // Bold top divider instead of a soft shadow — keeps the nav
+                // bar visually anchored against the pure black/white base
+                // without relying on Material's tonal-elevation tint (which
+                // muddies gold into an olive/brown blend on dark surfaces).
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(2.dp)
+                        .background(MaterialTheme.colorScheme.onBackground)
+                )
+                NavigationBar(
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    tonalElevation = 0.dp
+                ) {
                 NavigationBarItem(
                     selected = selectedTab == 0,
                     onClick = { selectedTab = 0 },
@@ -342,6 +353,7 @@ fun DashboardScreen(
                     label = { Text("Categories", fontSize = 10.sp, fontWeight = FontWeight.Bold) },
                     alwaysShowLabel = false
                 )
+                }
             }
         },
         floatingActionButton = {

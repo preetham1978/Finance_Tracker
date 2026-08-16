@@ -292,17 +292,15 @@ fun AddTransactionSheet(
             )
 
             // AI Bill Analyser Card Toggle
-            Card(
+            BrutalCard(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clickable { showAiBillScanner = !showAiBillScanner }
                     .testTag("ai_bill_scanner_toggle"),
-                colors = CardDefaults.cardColors(
-                    containerColor = if (showAiBillScanner) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)
-                    else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-                ),
-                shape = RoundedCornerShape(12.dp),
-                border = BorderStroke(1.dp, if (showAiBillScanner) MaterialTheme.colorScheme.primary else Color.Transparent)
+                backgroundColor = if (showAiBillScanner) MaterialTheme.colorScheme.primaryContainer
+                    else MaterialTheme.colorScheme.surfaceVariant,
+                accentColor = if (showAiBillScanner) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onBackground,
+                cornerRadius = 12.dp
             ) {
                 Row(
                     modifier = Modifier.padding(14.dp),

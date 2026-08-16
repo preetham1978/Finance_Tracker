@@ -117,12 +117,9 @@ fun GoalCard(
         else -> "₹"
     }
 
-    Card(
+    BrutalCard(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.1f))
+        cornerRadius = 20.dp
     ) {
         Column(modifier = Modifier.padding(20.dp)) {
             Row(

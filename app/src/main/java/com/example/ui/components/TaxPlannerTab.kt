@@ -80,10 +80,8 @@ fun TaxPlannerTab(viewModel: FinanceViewModel) {
         )
 
         // Inputs Section
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-            shape = RoundedCornerShape(16.dp)
+        BrutalCard(
+            modifier = Modifier.fillMaxWidth()
         ) {
             Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(
@@ -141,10 +139,9 @@ fun TaxPlannerTab(viewModel: FinanceViewModel) {
         }
 
         // Side-by-Side Tax Comparison Table
-        Card(
+        BrutalCard(
             modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)),
-            shape = RoundedCornerShape(16.dp)
+            backgroundColor = MaterialTheme.colorScheme.surfaceVariant
         ) {
             Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text(
@@ -241,10 +238,8 @@ fun TaxPlannerTab(viewModel: FinanceViewModel) {
 
         // Custom display card for AI Insights
         if (uiState.taxSavingInsights.isNotEmpty()) {
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                shape = RoundedCornerShape(16.dp)
+            BrutalCard(
+                modifier = Modifier.fillMaxWidth()
             ) {
                 Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Row(

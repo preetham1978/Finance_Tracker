@@ -124,11 +124,9 @@ fun AIAdvisorTab(viewModel: FinanceViewModel) {
             horizontalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             // Health Score
-            Card(
+            BrutalCard(
                 modifier = Modifier.weight(1f),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                shape = RoundedCornerShape(20.dp),
-                border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.1f))
+                cornerRadius = 16.dp
             ) {
                 Column(
                     modifier = Modifier.padding(16.dp),
@@ -160,11 +158,9 @@ fun AIAdvisorTab(viewModel: FinanceViewModel) {
             }
 
             // Runway
-            Card(
+            BrutalCard(
                 modifier = Modifier.weight(1f),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                shape = RoundedCornerShape(20.dp),
-                border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.1f))
+                cornerRadius = 16.dp
             ) {
                 Column(
                     modifier = Modifier.padding(16.dp),
@@ -195,11 +191,9 @@ fun AIAdvisorTab(viewModel: FinanceViewModel) {
         }
 
         // Statistics Summary Card
-        Card(
+        BrutalCard(
             modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-            shape = RoundedCornerShape(20.dp),
-            border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.1f))
+            cornerRadius = 16.dp
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
                 Text("Budget Management", fontSize = 14.sp, fontWeight = FontWeight.Bold)
@@ -249,10 +243,9 @@ fun AIAdvisorTab(viewModel: FinanceViewModel) {
         }
 
         // Statistics Summary Card (Original)
-        Card(
+        BrutalCard(
             modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.25f)),
-            shape = RoundedCornerShape(16.dp)
+            backgroundColor = MaterialTheme.colorScheme.primaryContainer
         ) {
             Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -297,10 +290,8 @@ fun AIAdvisorTab(viewModel: FinanceViewModel) {
 
         // Output Card Display
         if (uiState.spendInsights.isNotEmpty()) {
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                shape = RoundedCornerShape(16.dp)
+            BrutalCard(
+                modifier = Modifier.fillMaxWidth()
             ) {
                 Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Row(
@@ -327,10 +318,8 @@ fun AIAdvisorTab(viewModel: FinanceViewModel) {
             }
         } else {
             // Placeholder empty state
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                shape = RoundedCornerShape(16.dp)
+            BrutalCard(
+                modifier = Modifier.fillMaxWidth()
             ) {
                 Column(
                     modifier = Modifier.padding(24.dp),

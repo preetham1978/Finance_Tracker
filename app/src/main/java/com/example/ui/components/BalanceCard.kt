@@ -61,13 +61,14 @@ fun BalanceCard(
         String.format("%s%,.2f", symbol, creditCardSpending)
     }
 
-    Card(
+    // Solid vivid-gold "hero" card — bolder than the previous muted
+    // primaryContainer fill, and avoids Material's tonal-elevation tint
+    // (which muddies gold into an olive/brown blend on dark surfaces).
+    BrutalCard(
         modifier = modifier,
-        shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.primaryContainer
-        ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+        backgroundColor = MaterialTheme.colorScheme.primary,
+        accentColor = MaterialTheme.colorScheme.onBackground,
+        cornerRadius = 20.dp
     ) {
         Column(
             modifier = Modifier
@@ -79,7 +80,7 @@ fun BalanceCard(
                 Text(
                     text = "Salary & Liquid Assets",
                     fontSize = 14.sp,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f),
+                    color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.75f),
                     fontWeight = FontWeight.Bold
                 )
                 Spacer(modifier = Modifier.width(4.dp))
@@ -96,19 +97,19 @@ fun BalanceCard(
                         imageVector = Icons.Filled.Info,
                         contentDescription = "Excludes pending credit card payments",
                         modifier = Modifier.size(16.dp),
-                        tint = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.5f)
+                        tint = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.6f)
                     )
                 }
             }
-            
+
             Spacer(modifier = Modifier.height(8.dp))
-            
+
             // Balance text
             Text(
                 text = formattedBalance,
                 fontSize = 36.sp,
                 fontWeight = FontWeight.Black,
-                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                color = MaterialTheme.colorScheme.onPrimary,
                 letterSpacing = (-1).sp
             )
             
@@ -124,7 +125,7 @@ fun BalanceCard(
                     modifier = Modifier
                         .weight(1f)
                         .clip(RoundedCornerShape(16.dp))
-                        .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.5f))
+                        .background(Color.Black.copy(alpha = 0.15f))
                         .padding(12.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -147,7 +148,7 @@ fun BalanceCard(
                         Text(
                             text = "Income",
                             fontSize = 11.sp,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.6f),
+                            color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.7f),
                             fontWeight = FontWeight.Medium
                         )
                         Text(
@@ -165,7 +166,7 @@ fun BalanceCard(
                     modifier = Modifier
                         .weight(1f)
                         .clip(RoundedCornerShape(16.dp))
-                        .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.5f))
+                        .background(Color.Black.copy(alpha = 0.15f))
                         .padding(12.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -188,7 +189,7 @@ fun BalanceCard(
                         Text(
                             text = "Expense",
                             fontSize = 11.sp,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.6f),
+                            color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.7f),
                             fontWeight = FontWeight.Medium
                         )
                         Text(
