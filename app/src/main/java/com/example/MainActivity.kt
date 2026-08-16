@@ -1,5 +1,6 @@
 package com.example
 
+import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -22,15 +23,36 @@ import com.example.ui.viewmodel.FinanceViewModel
 import com.example.ui.viewmodel.FinanceViewModelFactory
 
 class MainActivity : ComponentActivity() {
+
+    // Backs the Share-target flow: long-press a bank SMS -> Share -> Vantage
+    // Finance lands the shared text here, and DashboardScreen watches this
+    // state to auto-open the Add Transaction sheet in Paste-Text mode.
+    private val sharedText = mutableStateOf<String?>(null)
+
+    private fun extractSharedText(intent: Intent?): String? {
+        return if (intent?.action == Intent.ACTION_SEND && intent.type == "text/plain") {
+            intent.getStringExtra(Intent.EXTRA_TEXT)
+        } else null
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        extractSharedText(intent)?.let { sharedText.value = it }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        sharedText.value = extractSharedText(intent)
         setContent {
             val app = applicationContext as FinanceApplication
             val viewModel: FinanceViewModel = ViewModelProvider(
                 this,
                 FinanceViewModelFactory(app.repository, this.application)
             )[FinanceViewModel::class.java]
+
+            val incomingSharedText by sharedText
 
             val themeMode by viewModel.darkThemeMode.collectAsState()
 
@@ -47,7 +69,7 @@ class MainActivity : ComponentActivity() {
                 ) {
                     var user by remember { mutableStateOf(FirebaseAuth.getInstance().currentUser) }
                     var bypassLogin by remember { mutableStateOf(false) }
-                    
+
                     DisposableEffect(Unit) {
                         val listener = FirebaseAuth.AuthStateListener { auth ->
                             user = auth.currentUser
@@ -57,9 +79,9 @@ class MainActivity : ComponentActivity() {
                             FirebaseAuth.getInstance().removeAuthStateListener(listener)
                         }
                     }
-                    
+
                     if (user != null || bypassLogin) {
-                        DashboardScreen(providedViewModel = viewModel)
+                        DashboardScreen(providedViewModel = viewModel, sharedText = incomingSharedText)
                     } else {
                         LoginScreen(onLoginSuccess = {
                             val currentUser = FirebaseAuth.getInstance().currentUser

@@ -190,6 +190,99 @@ fun AIAdvisorTab(viewModel: FinanceViewModel) {
             }
         }
 
+        // Cash Flow Forecast — projects your liquid balance to end of month
+        // using recent burn rate plus any recurring debits still due.
+        uiState.cashFlowForecast?.let { forecast ->
+            val symbol = FinanceViewModel.currencySymbols[uiState.activeCurrency] ?: "₹"
+            BrutalCard(
+                modifier = Modifier.fillMaxWidth(),
+                backgroundColor = if (forecast.willGoNegative) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.surface,
+                cornerRadius = 16.dp
+            ) {
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Icon(
+                            imageVector = Icons.Filled.TrendingUp,
+                            contentDescription = null,
+                            tint = if (forecast.willGoNegative) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
+                        )
+                        Text("Cash Flow Forecast", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                    }
+                    Text(
+                        text = if (forecast.daysRemainingInMonth > 0)
+                            "Based on your last 30 days of spending, you're projected to have $symbol${String.format("%,.0f", forecast.projectedEndOfMonthBalance)} in ${forecast.daysRemainingInMonth} days (end of month)."
+                        else
+                            "That's the last day of the month — this projection resets tomorrow.",
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    if (forecast.upcomingRecurringTotal > 0) {
+                        Text(
+                            text = "Includes $symbol${String.format("%,.0f", forecast.upcomingRecurringTotal)} in upcoming scheduled EMIs/recurring debits.",
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    if (forecast.willGoNegative) {
+                        Text(
+                            text = "⚠️ At this rate you may run short before the month ends — consider trimming discretionary spend.",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.error
+                        )
+                    }
+                }
+            }
+        }
+
+        // Subscription Watch — recurring merchants detected in your ledger,
+        // flagged if they haven't been charged in 45+ days (possible leak
+        // still worth cancelling) or just to remind you they exist.
+        if (uiState.subscriptions.isNotEmpty()) {
+            BrutalCard(
+                modifier = Modifier.fillMaxWidth(),
+                cornerRadius = 16.dp
+            ) {
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Icon(Icons.Filled.AutoAwesome, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                        Text("Subscription Watch", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                    }
+                    Text(
+                        text = "Recurring merchants detected automatically from your transaction history.",
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
+                    uiState.subscriptions.take(8).forEach { sub ->
+                        val symbol = FinanceViewModel.currencySymbols[sub.currency] ?: "₹"
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(sub.title, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                                Text(
+                                    text = if (sub.isPossibleLeak)
+                                        "Not charged in ${sub.daysSinceLastCharge} days — possible leak"
+                                    else
+                                        "Charged ~monthly · last ${sub.daysSinceLastCharge}d ago",
+                                    fontSize = 10.sp,
+                                    color = if (sub.isPossibleLeak) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            Text(
+                                text = "$symbol${String.format("%,.0f", sub.avgAmount)}",
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
         // Statistics Summary Card
         BrutalCard(
             modifier = Modifier.fillMaxWidth(),

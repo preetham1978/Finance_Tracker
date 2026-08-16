@@ -79,7 +79,11 @@ fun AddTransactionSheet(
     initialCreditCardBank: String? = null,
     initialIsRecurring: Boolean = false,
     initialScheduledDay: Int? = null,
-    isEdit: Boolean = false
+    isEdit: Boolean = false,
+    // Pre-fills the "Paste Text" AI panel — used when the sheet is opened
+    // from Android's Share menu (e.g. long-press a bank SMS -> Share ->
+    // Vantage Finance) so the user doesn't have to retype it.
+    initialPasteText: String? = null
 ) {
     var title by remember { mutableStateOf(initialTitle) }
     var amountStr by remember { mutableStateOf(if (initialAmount > 0.0) initialAmount.toString() else "") }
@@ -114,12 +118,20 @@ fun AddTransactionSheet(
     val coroutineScope = rememberCoroutineScope()
     
     // AI Bill Analyser panel states
-    var showAiBillScanner by remember { mutableStateOf(!isEdit) }
+    var showAiBillScanner by remember { mutableStateOf(!isEdit || !initialPasteText.isNullOrBlank()) }
     var aiImageUri by remember { mutableStateOf<Uri?>(null) }
     var aiImageBase64 by remember { mutableStateOf("") }
     var aiImageName by remember { mutableStateOf("") }
     var isAnalyzing by remember { mutableStateOf(false) }
     var aiStatusMessage by remember { mutableStateOf("") }
+
+    // "Photo" vs "Paste Text" mode — Paste Text lets a user paste (or arrive
+    // via Android Share with) a bank SMS / raw transaction text, which is
+    // run through the same GeminiManager.analyzeBillText pipeline the mock
+    // text-analysis fallback already supports. No SMS permission needed.
+    var aiInputMode by remember { mutableStateOf(if (!initialPasteText.isNullOrBlank()) "PASTE" else "PHOTO") }
+    var pasteText by remember { mutableStateOf(initialPasteText ?: "") }
+    var hasAutoAnalyzedShare by remember { mutableStateOf(false) }
     
     // AI Category Auto-Suggestion States
     var isAiSuggestingCategory by remember { mutableStateOf(false) }
@@ -344,65 +356,114 @@ fun AddTransactionSheet(
                         .padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    // Header for image upload
-                    Text(
-                        text = "Scan Receipt Image",
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
-                            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.1f), RoundedCornerShape(12.dp))
-                            .clickable { showAiImageChoiceDialog = true }
-                            .padding(16.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Row(
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            verticalAlignment = Alignment.CenterVertically
+                    // Photo vs Paste Text mode toggle
+                    SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                        SegmentedButton(
+                            selected = aiInputMode == "PHOTO",
+                            onClick = { aiInputMode = "PHOTO"; aiStatusMessage = "" },
+                            shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2)
                         ) {
-                            Icon(
-                                imageVector = if (aiImageUri != null) Icons.Filled.CheckCircle else Icons.Filled.CloudUpload,
-                                contentDescription = null,
-                                tint = if (aiImageUri != null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            Text(
-                                text = if (aiImageUri != null) aiImageName else "Choose Receipt Photo",
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                color = if (aiImageUri != null) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant
-                            )
+                            Text("Photo", fontSize = 12.sp)
+                        }
+                        SegmentedButton(
+                            selected = aiInputMode == "PASTE",
+                            onClick = { aiInputMode = "PASTE"; aiStatusMessage = "" },
+                            shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2),
+                            modifier = Modifier.testTag("ai_paste_mode_button")
+                        ) {
+                            Text("Paste SMS / Text", fontSize = 12.sp)
                         }
                     }
 
-                    // Image Selection Dialog
-                    if (showAiImageChoiceDialog) {
-                        AlertDialog(
-                            onDismissRequest = { showAiImageChoiceDialog = false },
-                            title = { Text("Select Receipt Source") },
-                            text = { Text("How would you like to provide the receipt photo?") },
-                            confirmButton = {
-                                TextButton(onClick = {
-                                    showAiImageChoiceDialog = false
-                                    aiCameraPermissionLauncher.launch(Manifest.permission.CAMERA)
-                                }) {
-                                    Text("Camera")
-                                }
-                            },
-                            dismissButton = {
-                                TextButton(onClick = {
-                                    showAiImageChoiceDialog = false
-                                    aiGalleryLauncher.launch("image/*")
-                                }) {
-                                    Text("Gallery")
-                                }
+                    if (aiInputMode == "PHOTO") {
+                        Text(
+                            text = "Scan Receipt Image",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                                .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.1f), RoundedCornerShape(12.dp))
+                                .clickable { showAiImageChoiceDialog = true }
+                                .padding(16.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = if (aiImageUri != null) Icons.Filled.CheckCircle else Icons.Filled.CloudUpload,
+                                    contentDescription = null,
+                                    tint = if (aiImageUri != null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Text(
+                                    text = if (aiImageUri != null) aiImageName else "Choose Receipt Photo",
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = if (aiImageUri != null) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant
+                                )
                             }
+                        }
+
+                        // Image Selection Dialog
+                        if (showAiImageChoiceDialog) {
+                            AlertDialog(
+                                onDismissRequest = { showAiImageChoiceDialog = false },
+                                title = { Text("Select Receipt Source") },
+                                text = { Text("How would you like to provide the receipt photo?") },
+                                confirmButton = {
+                                    TextButton(onClick = {
+                                        showAiImageChoiceDialog = false
+                                        aiCameraPermissionLauncher.launch(Manifest.permission.CAMERA)
+                                    }) {
+                                        Text("Camera")
+                                    }
+                                },
+                                dismissButton = {
+                                    TextButton(onClick = {
+                                        showAiImageChoiceDialog = false
+                                        aiGalleryLauncher.launch("image/*")
+                                    }) {
+                                        Text("Gallery")
+                                    }
+                                }
+                            )
+                        }
+                    } else {
+                        // Paste Text mode — paste a bank SMS or any raw
+                        // transaction text and let Gemini parse it. Also the
+                        // landing spot when the sheet is opened via Android
+                        // Share (see initialPasteText).
+                        Text(
+                            text = "Paste Bank SMS or Transaction Text",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        Text(
+                            text = "Tip: long-press a bank SMS on your phone, tap Share, and choose Vantage Finance to land it here automatically.",
+                            fontSize = 10.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        OutlinedTextField(
+                            value = pasteText,
+                            onValueChange = { pasteText = it },
+                            placeholder = { Text("e.g. Rs.499.00 debited from A/c XX1234 on 12-08-26 to NETFLIX. Avl Bal Rs.12,345.00") },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .heightIn(min = 80.dp)
+                                .testTag("ai_paste_text_field"),
+                            minLines = 3,
+                            shape = RoundedCornerShape(12.dp)
                         )
                     }
 
@@ -416,13 +477,17 @@ fun AddTransactionSheet(
                         )
                     }
 
-                    // Scan Action button
+                    // Scan/Analyze Action button
                     Button(
                         onClick = {
                             coroutineScope.launch {
                                 isAnalyzing = true
                                 aiStatusMessage = "Analyzing with Gemini..."
-                                val extracted = GeminiManager.analyzeBill(aiImageBase64, aiImageName)
+                                val extracted = if (aiInputMode == "PASTE") {
+                                    GeminiManager.analyzeBillText(pasteText)
+                                } else {
+                                    GeminiManager.analyzeBill(aiImageBase64, aiImageName)
+                                }
                                 if (extracted != null) {
                                     title = extracted.title
                                     amountStr = extracted.amount.toString()
@@ -437,7 +502,7 @@ fun AddTransactionSheet(
                                 isAnalyzing = false
                             }
                         },
-                        enabled = !isAnalyzing && aiImageBase64.isNotEmpty(),
+                        enabled = !isAnalyzing && (if (aiInputMode == "PASTE") pasteText.isNotBlank() else aiImageBase64.isNotEmpty()),
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(44.dp)
@@ -451,9 +516,31 @@ fun AddTransactionSheet(
                         } else {
                             Icon(Icons.Filled.AutoAwesome, contentDescription = null, modifier = Modifier.size(16.dp))
                             Spacer(modifier = Modifier.width(6.dp))
-                            Text("Scan and Autofill Form", fontSize = 13.sp)
+                            Text(if (aiInputMode == "PASTE") "Analyze Text and Autofill Form" else "Scan and Autofill Form", fontSize = 13.sp)
                         }
                     }
+                }
+            }
+
+            // Auto-run analysis once when opened via Android Share with text
+            // already pasted in, so the user just has to tap Save.
+            LaunchedEffect(initialPasteText) {
+                if (!initialPasteText.isNullOrBlank() && !hasAutoAnalyzedShare) {
+                    hasAutoAnalyzedShare = true
+                    isAnalyzing = true
+                    aiStatusMessage = "Analyzing shared text with Gemini..."
+                    val extracted = GeminiManager.analyzeBillText(initialPasteText)
+                    if (extracted != null) {
+                        title = extracted.title
+                        amountStr = extracted.amount.toString()
+                        selectedCurrency = extracted.currency
+                        selectedCategory = if (categories.contains(extracted.category)) extracted.category else categories.first()
+                        notes = extracted.notes
+                        aiStatusMessage = "Success! Form fields auto-filled from shared text."
+                    } else {
+                        aiStatusMessage = "Couldn't parse the shared text — please check the fields below."
+                    }
+                    isAnalyzing = false
                 }
             }
 

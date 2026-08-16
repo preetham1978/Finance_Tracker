@@ -47,7 +47,12 @@ data class FinanceUiState(
     val goals: List<Goal> = emptyList(),
     val budgets: List<Budget> = emptyList(),
     val categories: List<Category> = emptyList(),
-    val isLoading: Boolean = true
+    val isLoading: Boolean = true,
+
+    // Subscription leak detection + end-of-month cash flow projection —
+    // both computed purely from the local ledger, no new permissions.
+    val subscriptions: List<com.example.data.SubscriptionAlert> = emptyList(),
+    val cashFlowForecast: com.example.data.CashFlowForecast? = null
 )
 
 data class AdvisorState(
@@ -355,6 +360,18 @@ class FinanceViewModel(
         
         val totalHealthScore = (savingsScore + runwayScore + debtScore).toInt().coerceIn(0, 100)
 
+        // Subscription Watch + Cash Flow Forecast — pure local-ledger analysis,
+        // no network calls or new permissions required.
+        val nowMillis = System.currentTimeMillis()
+        val subscriptionAlerts = com.example.data.SubscriptionDetector.detect(rawTransactions, nowMillis)
+        val cashFlowForecast = com.example.data.CashFlowForecaster.forecast(
+            transactions = rawTransactions,
+            currentBalance = totalBalance,
+            activeCurrency = currency,
+            nowMillis = nowMillis,
+            convert = { amount, from, to -> convert(amount, from, to) }
+        )
+
         FinanceUiState(
             transactions = rawTransactions,
             filteredTransactions = filtered,
@@ -379,7 +396,9 @@ class FinanceViewModel(
             goals = goals,
             budgets = budgets,
             categories = categories,
-            isLoading = isLoading
+            isLoading = isLoading,
+            subscriptions = subscriptionAlerts,
+            cashFlowForecast = cashFlowForecast
         )
     }.stateIn(
         scope = viewModelScope,

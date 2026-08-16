@@ -34,7 +34,11 @@ import kotlinx.coroutines.launch
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DashboardScreen(
-    providedViewModel: FinanceViewModel? = null
+    providedViewModel: FinanceViewModel? = null,
+    // Populated when the app is opened via Android's Share menu with a
+    // bank SMS / raw transaction text — auto-opens the Add Transaction
+    // sheet in Paste-Text mode so the user just has to confirm and save.
+    sharedText: String? = null
 ) {
     val context = LocalContext.current
     val app = context.applicationContext as FinanceApplication
@@ -59,6 +63,17 @@ fun DashboardScreen(
     var transactionToEdit by remember { mutableStateOf<com.example.data.Transaction?>(null) }
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
+
+    // Auto-open the Add Transaction sheet in Paste-Text mode whenever a new
+    // piece of shared text (e.g. a shared bank SMS) arrives.
+    var pendingSharedText by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(sharedText) {
+        if (!sharedText.isNullOrBlank()) {
+            pendingSharedText = sharedText
+            transactionToEdit = null
+            showAddSheet = true
+        }
+    }
     
     // Deletion confirmation dialog
     if (transactionToDelete != null) {
@@ -726,11 +741,13 @@ fun DashboardScreen(
         exit = fadeOut()
     ) {
         AddTransactionSheet(
-            onDismiss = { 
+            onDismiss = {
                 showAddSheet = false
                 transactionToEdit = null
+                pendingSharedText = null
             },
             isEdit = transactionToEdit != null,
+            initialPasteText = pendingSharedText,
             initialTitle = transactionToEdit?.title ?: "",
             initialAmount = transactionToEdit?.amount ?: 0.0,
             initialCurrency = transactionToEdit?.currency ?: uiState.activeCurrency,
@@ -774,6 +791,7 @@ fun DashboardScreen(
                 }
                 showAddSheet = false
                 transactionToEdit = null
+                pendingSharedText = null
             }
         )
     }

@@ -199,14 +199,19 @@ object GeminiManager {
         val prompt = """
             Analyze this manual receipt text, SMS, or transaction info:
             "$rawText"
-            
+
             Extract the following information as a clean JSON block:
-            - Merchant/Store Name
+            - Merchant/Store Name: the payee/beneficiary/merchant this transaction is
+              with. NEVER use the transaction amount, a masked account number
+              (e.g. "XX1234"), a date, or a reference/transaction ID as the title.
+              If no merchant name is present anywhere in the text, use a short
+              generic description of the transaction instead (e.g. "Bank Transfer",
+              "ATM Withdrawal", "Account Credit") — never a number.
             - Total Amount
             - Category (Choose one: "Food", "Shopping", "Bills & Utilities", "Entertainment", "Travel & Transport", "Health & Fitness", "Personal Loan", "Other")
             - Currency (e.g. INR, USD, EUR, GBP)
             - Notes/Summary of items or transaction details
-            
+
             Your response MUST be ONLY the valid JSON object with the following keys:
             "title", "amount", "category", "currency", "notes"
             Do not include any markdown format tags or extra text.
@@ -276,9 +281,48 @@ object GeminiManager {
                 category = "Entertainment"
             }
             else -> {
-                // capitalize first word or use generic name
-                val words = rawText.split(Regex("\\s+")).filter { it.isNotBlank() }
-                title = words.firstOrNull()?.replaceFirstChar { if (it.isLowerCase()) it.titlecase(Locale.getDefault()) else it.toString() } ?: "Manual Scan Merchant"
+                // Bank SMS almost always leads with the amount ("Rs.499.00
+                // debited..."), so blindly taking the first word (the old
+                // behaviour) picked the amount itself as the title. Instead:
+                // First, look for a merchant right after "to"/"at"/"towards"/
+                // "in favour of" (how most debit SMS name the payee). Then
+                // fall back to the first word that isn't an amount, a masked
+                // account number, or a common bank-SMS stopword.
+                // Never let a number end up as the title.
+                val stopWords = setOf(
+                    "rs", "inr", "usd", "eur", "gbp", "debited", "credited", "credit", "debit",
+                    "from", "to", "at", "towards", "for", "in", "of", "favour", "favor",
+                    "a/c", "ac", "acct", "account", "avl", "bal", "balance", "on", "via",
+                    "upi", "imps", "neft", "rtgs", "info", "your", "you", "is", "was",
+                    "has", "been", "with", "the", "and", "txn", "id", "ref", "no", "dt", "date", "bank"
+                )
+                val amountTokenRegex = Regex("^(rs\\.?|inr|₹|\\$|€|£)?\\.?\\d[\\d,]*(\\.\\d+)?$", RegexOption.IGNORE_CASE)
+                val maskedAccountRegex = Regex("^x*\\d+$", RegexOption.IGNORE_CASE)
+
+                fun usableToken(raw: String): String? {
+                    val clean = raw.trim('.', ',', ':', ';', '/')
+                    if (clean.length < 2 || !clean.any { it.isLetter() }) return null
+                    val lower = clean.lowercase()
+                    if (lower in stopWords) return null
+                    if (amountTokenRegex.matches(lower) || maskedAccountRegex.matches(lower)) return null
+                    return clean
+                }
+
+                val merchantRegex = Regex(
+                    "(?:to|at|towards|in favou?r of)\\s+([A-Za-z][A-Za-z0-9&.'\\-]{1,30})",
+                    RegexOption.IGNORE_CASE
+                )
+                val merchantCandidate = merchantRegex.findAll(rawText)
+                    .mapNotNull { usableToken(it.groupValues[1]) }
+                    .firstOrNull()
+
+                val wordCandidate = rawText.split(Regex("[\\s,]+"))
+                    .mapNotNull { usableToken(it) }
+                    .firstOrNull()
+
+                title = (merchantCandidate ?: wordCandidate)
+                    ?.replaceFirstChar { if (it.isLowerCase()) it.titlecase(Locale.getDefault()) else it.toString() }
+                    ?: "Bank Transaction"
                 category = "Other"
             }
         }
