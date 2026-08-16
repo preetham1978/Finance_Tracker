@@ -24,7 +24,21 @@ import androidx.compose.ui.unit.sp
 import com.example.ui.viewmodel.FinanceViewModel
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material.icons.filled.NotificationsActive
 import com.example.data.Budget
+import androidx.compose.ui.platform.LocalContext
+import androidx.core.app.NotificationManagerCompat
+import android.content.Intent
+import android.provider.Settings
+import android.Manifest
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.LockOpen
+import androidx.compose.material.icons.filled.Alarm
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -93,7 +107,25 @@ fun BudgetDialog(
 @Composable
 fun AIAdvisorTab(viewModel: FinanceViewModel) {
     val uiState by viewModel.uiState.collectAsState()
-    
+    val context = LocalContext.current
+    val notifCaptureEnabled by viewModel.notifCaptureEnabled.collectAsState()
+
+    // Re-checked on every recomposition of this key, which we bump when the
+    // screen resumes (e.g. returning from the system Notification access
+    // settings screen) so the "Granted"/"Not granted" status stays fresh.
+    var resumeTick by remember { mutableStateOf(0) }
+    val lifecycleOwner = androidx.compose.ui.platform.LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) resumeTick++
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+    val hasNotificationAccess = remember(resumeTick) {
+        NotificationManagerCompat.getEnabledListenerPackages(context).contains(context.packageName)
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -279,6 +311,165 @@ fun AIAdvisorTab(viewModel: FinanceViewModel) {
                             )
                         }
                     }
+                }
+            }
+        }
+
+        // Auto-Capture from Notifications — fully hands-off logging: when
+        // enabled, bank/UPI transaction notifications are parsed the same
+        // way pasted SMS text is, with no manual step at all. Off by
+        // default; needs an explicit one-time OS-level grant plus this
+        // in-app toggle before anything is read.
+        BrutalCard(
+            modifier = Modifier.fillMaxWidth(),
+            cornerRadius = 16.dp
+        ) {
+            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Icon(Icons.Filled.NotificationsActive, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                    Text("Auto-Capture from Notifications", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                }
+                Text(
+                    text = "Automatically logs transactions from bank/UPI app notifications — no pasting or sharing needed. Only notifications that look like a transaction alert (amount + debited/credited) are ever read; nothing else is stored or sent anywhere, and you can turn this off anytime.",
+                    fontSize = 11.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                if (!hasNotificationAccess) {
+                    Text(
+                        text = "Notification access: Not granted",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.error
+                    )
+                    OutlinedButton(
+                        onClick = {
+                            context.startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Text("Grant Notification Access")
+                    }
+                } else {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column {
+                            Text("Notification access: Granted", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFF2E7D32))
+                            Text(
+                                text = if (notifCaptureEnabled) "Auto-capture is ON" else "Auto-capture is OFF",
+                                fontSize = 11.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Switch(
+                            checked = notifCaptureEnabled,
+                            onCheckedChange = { viewModel.setNotifCaptureEnabled(it) }
+                        )
+                    }
+                }
+            }
+        }
+
+        // App Lock + Bill Reminders — grouped since both are quick app-level
+        // security/convenience settings rather than AI features.
+        val lockEnabled = AppLockManager.isEnabled(context)
+        var lockDialogMode by remember { mutableStateOf<AppLockMode?>(null) }
+        var billRemindersEnabled by remember(resumeTick) {
+            mutableStateOf(context.getSharedPreferences("vantage_prefs", android.content.Context.MODE_PRIVATE).getBoolean("bill_reminders_enabled", false))
+        }
+        val notificationPermissionLauncher = rememberLauncherForActivityResult(
+            contract = ActivityResultContracts.RequestPermission()
+        ) { granted ->
+            if (granted) {
+                context.getSharedPreferences("vantage_prefs", android.content.Context.MODE_PRIVATE)
+                    .edit().putBoolean("bill_reminders_enabled", true).apply()
+                billRemindersEnabled = true
+            }
+        }
+
+        BrutalCard(
+            modifier = Modifier.fillMaxWidth(),
+            cornerRadius = 16.dp
+        ) {
+            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Icon(if (lockEnabled) Icons.Filled.Lock else Icons.Filled.LockOpen, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                    Text("App Settings", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                }
+
+                // App Lock row
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("App Lock (PIN)", fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                        Text(
+                            text = if (lockEnabled) "Vantage locks whenever you leave the app" else "Require a PIN to open the app",
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Switch(
+                        checked = lockEnabled,
+                        onCheckedChange = { checked ->
+                            lockDialogMode = if (checked) AppLockMode.SETUP else AppLockMode.CONFIRM_TO_DISABLE
+                        }
+                    )
+                }
+
+                HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
+
+                // Bill Reminders row
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(modifier = Modifier.weight(1f), verticalAlignment = Alignment.Top) {
+                        Icon(Icons.Filled.Alarm, contentDescription = null, modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Column {
+                            Text("Bill & EMI Reminders", fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                            Text(
+                                text = "Notifies you when a recurring bill is due within 2 days (checked each time you open the app)",
+                                fontSize = 11.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                    Switch(
+                        checked = billRemindersEnabled,
+                        onCheckedChange = { checked ->
+                            if (checked && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                                notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                            } else {
+                                context.getSharedPreferences("vantage_prefs", android.content.Context.MODE_PRIVATE)
+                                    .edit().putBoolean("bill_reminders_enabled", checked).apply()
+                                billRemindersEnabled = checked
+                            }
+                        }
+                    )
+                }
+            }
+        }
+
+        if (lockDialogMode != null) {
+            Dialog(
+                onDismissRequest = { lockDialogMode = null },
+                properties = DialogProperties(usePlatformDefaultWidth = false)
+            ) {
+                Box(modifier = Modifier.fillMaxSize()) {
+                    AppLockScreen(
+                        mode = lockDialogMode!!,
+                        onUnlocked = { lockDialogMode = null },
+                        onCancel = { lockDialogMode = null }
+                    )
                 }
             }
         }

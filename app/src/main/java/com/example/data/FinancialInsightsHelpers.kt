@@ -118,3 +118,72 @@ object CashFlowForecaster {
         )
     }
 }
+
+/**
+ * Bill due-date reminders. Deliberately simple for this pass: checked once
+ * whenever the app is opened (via a LaunchedEffect in DashboardScreen)
+ * rather than via a true background scheduler (AlarmManager/WorkManager),
+ * which would need extra permissions/dependencies and boot-recovery
+ * plumbing. This still catches the common case — most people open a
+ * finance app at least daily — and needs only the standard
+ * POST_NOTIFICATIONS runtime permission (Android 13+), nothing restricted.
+ */
+object BillReminderChecker {
+    private const val PREFS = "vantage_prefs"
+    private const val CHANNEL_ID = "bill_reminders"
+    private val monthKeyFormat = java.text.SimpleDateFormat("yyyyMM", java.util.Locale.US)
+
+    /**
+     * Finds recurring expenses due within the next 2 days that haven't
+     * already been reminded about this month, and posts one local
+     * notification per match. Silently no-ops if the user hasn't opted in
+     * (reminders_enabled) or hasn't granted notification permission —
+     * NotificationManagerCompat.notify() is a safe no-op in that case.
+     */
+    fun checkAndNotify(context: android.content.Context, transactions: List<Transaction>) {
+        val prefs = context.getSharedPreferences(PREFS, android.content.Context.MODE_PRIVATE)
+        if (!prefs.getBoolean("bill_reminders_enabled", false)) return
+
+        val now = java.util.Calendar.getInstance()
+        val today = now.get(java.util.Calendar.DAY_OF_MONTH)
+        val monthKey = monthKeyFormat.format(now.time)
+
+        val due = transactions.filter { txn ->
+            txn.isRecurring && txn.type == "EXPENSE" && txn.scheduledDayOfMonth != null &&
+                (txn.scheduledDayOfMonth - today) in 0..2
+        }
+        if (due.isEmpty()) return
+
+        val notificationManager = androidx.core.app.NotificationManagerCompat.from(context)
+        due.forEach { txn ->
+            val dedupKey = "reminded_${txn.id}_$monthKey"
+            if (prefs.getBoolean(dedupKey, false)) return@forEach
+
+            val daysUntil = txn.scheduledDayOfMonth!! - today
+            val whenText = when (daysUntil) {
+                0 -> "today"
+                1 -> "tomorrow"
+                else -> "in $daysUntil days"
+            }
+            val symbol = when (txn.currency) {
+                "USD" -> "$"; "EUR" -> "€"; "GBP" -> "£"; "JPY" -> "¥"; else -> "₹"
+            }
+
+            val notification = androidx.core.app.NotificationCompat.Builder(context, CHANNEL_ID)
+                .setSmallIcon(android.R.drawable.ic_dialog_info)
+                .setContentTitle("${txn.title} due $whenText")
+                .setContentText("$symbol${String.format("%,.2f", txn.amount)} — scheduled for the ${txn.scheduledDayOfMonth} of the month.")
+                .setPriority(androidx.core.app.NotificationCompat.PRIORITY_DEFAULT)
+                .setAutoCancel(true)
+                .build()
+
+            try {
+                notificationManager.notify(txn.id, notification)
+            } catch (_: SecurityException) {
+                // Permission not granted — nothing we can do here; the UI
+                // surfaces a "grant permission" prompt separately.
+            }
+            prefs.edit().putBoolean(dedupKey, true).apply()
+        }
+    }
+}

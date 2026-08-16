@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- RemoteViews layout for BalanceWidgetProvider. RemoteViews only supports
+     a limited set of views (LinearLayout/FrameLayout/RelativeLayout,
+     TextView, ImageView, Button, ImageButton, etc.) — no Compose here.
+     widget_root's background color/opacity and the text colors below are
+     overridden at runtime per-widget by BalanceWidgetProvider based on the
+     theme chosen in WidgetConfigActivity — the values here are just the
+     initial-placement fallback before that first update lands. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="#FFD60A"
+    android:padding="16dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical">
+
+        <TextView
+            android:id="@+id/widget_title"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="Vantage Finance"
+            android:textColor="#000000"
+            android:textStyle="bold"
+            android:textSize="12sp" />
+
+        <ImageButton
+            android:id="@+id/widget_add_button"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:background="#22000000"
+            android:src="@android:drawable/ic_input_add"
+            android:contentDescription="Add transaction" />
+    </LinearLayout>
+
+    <TextView
+        android:id="@+id/widget_balance"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:text="₹0"
+        android:textColor="#000000"
+        android:textStyle="bold"
+        android:textSize="24sp" />
+
+</LinearLayout>

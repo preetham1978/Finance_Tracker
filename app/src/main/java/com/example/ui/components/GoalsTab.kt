@@ -29,7 +29,8 @@ fun GoalsTab(
     uiState: FinanceUiState,
     onAddGoal: (String, Double, Long?, String) -> Unit,
     onUpdateProgress: (Goal, Double) -> Unit,
-    onDeleteGoal: (Goal) -> Unit
+    onDeleteGoal: (Goal) -> Unit,
+    onSweepRoundUp: (Goal) -> Unit = {}
 ) {
     var showAddDialog by remember { mutableStateOf(false) }
 
@@ -52,6 +53,17 @@ fun GoalsTab(
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Spacer(modifier = Modifier.height(16.dp))
+            }
+
+            if (uiState.goals.isNotEmpty() && uiState.pendingRoundUpTotal > 0.0) {
+                item {
+                    RoundUpSavingsCard(
+                        pendingAmount = uiState.pendingRoundUpTotal,
+                        activeCurrency = uiState.activeCurrency,
+                        goals = uiState.goals,
+                        onSweep = onSweepRoundUp
+                    )
+                }
             }
 
             if (uiState.goals.isEmpty()) {
@@ -97,6 +109,57 @@ fun GoalsTab(
                 showAddDialog = false
             }
         )
+    }
+}
+
+@Composable
+fun RoundUpSavingsCard(
+    pendingAmount: Double,
+    activeCurrency: String,
+    goals: List<Goal>,
+    onSweep: (Goal) -> Unit
+) {
+    val symbol = when (activeCurrency) {
+        "INR" -> "₹"; "USD" -> "$"; "EUR" -> "€"; "GBP" -> "£"; "JPY" -> "¥"; else -> "₹"
+    }
+    var goalMenuExpanded by remember { mutableStateOf(false) }
+
+    BrutalCard(
+        modifier = Modifier.fillMaxWidth(),
+        backgroundColor = MaterialTheme.colorScheme.primaryContainer,
+        cornerRadius = 16.dp
+    ) {
+        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Icon(Icons.Filled.Savings, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                Text("Round-Up Savings", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+            }
+            Text(
+                text = "Every expense rounded up to the nearest $symbol${if (activeCurrency == "INR") "10" else "1"} adds up. You've got $symbol${String.format("%,.2f", pendingAmount)} ready to sweep into a goal.",
+                fontSize = 12.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Box {
+                Button(
+                    onClick = { goalMenuExpanded = true },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Text("Sweep $symbol${String.format("%,.2f", pendingAmount)} into a Goal")
+                }
+                DropdownMenu(expanded = goalMenuExpanded, onDismissRequest = { goalMenuExpanded = false }) {
+                    goals.forEach { goal ->
+                        DropdownMenuItem(
+                            text = { Text("${goal.iconEmoji} ${goal.name}") },
+                            onClick = {
+                                onSweep(goal)
+                                goalMenuExpanded = false
+                            }
+                        )
+                    }
+                }
+            }
+        }
     }
 }
 

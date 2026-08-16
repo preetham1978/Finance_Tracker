@@ -38,7 +38,10 @@ fun DashboardScreen(
     // Populated when the app is opened via Android's Share menu with a
     // bank SMS / raw transaction text — auto-opens the Add Transaction
     // sheet in Paste-Text mode so the user just has to confirm and save.
-    sharedText: String? = null
+    sharedText: String? = null,
+    // Bumped to a fresh timestamp when the home-screen widget's "+" button
+    // is tapped — auto-opens a blank Add Transaction sheet.
+    openAddTransactionSignal: Long = 0L
 ) {
     val context = LocalContext.current
     val app = context.applicationContext as FinanceApplication
@@ -74,7 +77,26 @@ fun DashboardScreen(
             showAddSheet = true
         }
     }
-    
+
+    // Home-screen widget "+" button -> open a blank Add Transaction sheet.
+    LaunchedEffect(openAddTransactionSignal) {
+        if (openAddTransactionSignal > 0L) {
+            pendingSharedText = null
+            transactionToEdit = null
+            showAddSheet = true
+        }
+    }
+
+    // Bill/EMI due-date reminders — checked once whenever the transaction
+    // list is (re)loaded, i.e. roughly once per app open. See
+    // BillReminderChecker for why this is on-open rather than a true
+    // background scheduler.
+    LaunchedEffect(uiState.transactions) {
+        if (uiState.transactions.isNotEmpty()) {
+            com.example.data.BillReminderChecker.checkAndNotify(context, uiState.transactions)
+        }
+    }
+
     // Deletion confirmation dialog
     if (transactionToDelete != null) {
         AlertDialog(
@@ -725,7 +747,8 @@ fun DashboardScreen(
                     uiState = uiState,
                     onAddGoal = { name, target, deadline, icon -> viewModel.addGoal(name, target, deadline, icon) },
                     onUpdateProgress = { goal, saved -> viewModel.updateGoalProgress(goal, saved) },
-                    onDeleteGoal = { goal -> viewModel.deleteGoal(goal) }
+                    onDeleteGoal = { goal -> viewModel.deleteGoal(goal) },
+                    onSweepRoundUp = { goal -> viewModel.sweepRoundUpToGoal(goal) }
                 )
                 4 -> TaxPlannerTab(viewModel)
                 5 -> AIAdvisorTab(viewModel)

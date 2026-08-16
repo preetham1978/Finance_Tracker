@@ -3,6 +3,10 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.CAMERA" />
+    <!-- Standard runtime permission (Android 13+) for Bill/EMI reminder
+         notifications — requested explicitly via the in-app toggle, not
+         restricted like SMS/Call-Log permissions. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <application
         android:name=".FinanceApplication"
@@ -33,6 +37,43 @@
         <activity
             android:name="androidx.activity.ComponentActivity"
             android:exported="true" />
+
+        <!-- Optional, opt-in auto-capture (see TransactionNotificationListener).
+             Requires the user to explicitly grant Notification access in
+             Settings; the app never reads notifications until they do, and
+             even then only processes them if the in-app toggle is on. -->
+        <service
+            android:name=".notifications.TransactionNotificationListener"
+            android:exported="true"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+        </service>
+
+        <!-- Widget appearance picker — launched by the system when the
+             widget is placed (android:configure in balance_widget_info.xml)
+             and reopenable via long-press -> Edit on most launchers. -->
+        <activity
+            android:name=".widget.WidgetConfigActivity"
+            android:exported="true"
+            android:theme="@android:style/Theme.Material.Light.NoActionBar">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_CONFIGURE" />
+            </intent-filter>
+        </activity>
+
+        <!-- Home-screen balance widget (BalanceWidgetProvider). -->
+        <receiver
+            android:name=".widget.BalanceWidgetProvider"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/balance_widget_info" />
+        </receiver>
 
         <provider
             android:name="androidx.core.content.FileProvider"

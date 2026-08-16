@@ -52,7 +52,10 @@ data class FinanceUiState(
     // Subscription leak detection + end-of-month cash flow projection —
     // both computed purely from the local ledger, no new permissions.
     val subscriptions: List<com.example.data.SubscriptionAlert> = emptyList(),
-    val cashFlowForecast: com.example.data.CashFlowForecast? = null
+    val cashFlowForecast: com.example.data.CashFlowForecast? = null,
+
+    // Round-up savings not yet swept into a goal (see sweepRoundUpToGoal).
+    val pendingRoundUpTotal: Double = 0.0
 )
 
 data class AdvisorState(
@@ -94,6 +97,18 @@ class FinanceViewModel(
     fun setTaxCountry(countryCode: String) {
         _taxCountry.value = countryCode
         prefs.edit().putString("tax_country", countryCode).apply()
+    }
+
+    // App-level gate for notification-based auto-capture (see
+    // TransactionNotificationListener). Defaults OFF — this only ever
+    // turns on when the user explicitly flips it, even if OS-level
+    // Notification access is already granted for some other reason.
+    private val _notifCaptureEnabled = MutableStateFlow(prefs.getBoolean("notif_capture_enabled", false))
+    val notifCaptureEnabled = _notifCaptureEnabled.asStateFlow()
+
+    fun setNotifCaptureEnabled(enabled: Boolean) {
+        _notifCaptureEnabled.value = enabled
+        prefs.edit().putBoolean("notif_capture_enabled", enabled).apply()
     }
 
     // Google Cloud Synchronization and Auth States
@@ -166,6 +181,11 @@ class FinanceViewModel(
                 if (_isUserLoggedIn.value && isInitialSyncCompleted.value) {
                     CloudSyncManager.backupToCloud(application, transactions)
                 }
+                // Single choke point for the home-screen widget: fires on
+                // every insert/update/delete regardless of which ViewModel
+                // function triggered it, so the widget stays fresh without
+                // needing a refresh call sprinkled into every mutation path.
+                com.example.widget.BalanceWidgetProvider.refreshAll(application)
             }
         }
         
@@ -372,6 +392,20 @@ class FinanceViewModel(
             convert = { amount, from, to -> convert(amount, from, to) }
         )
 
+        // Round-Up Savings: round every expense up to the nearest unit
+        // (₹10 for INR, since whole-rupee amounts are common and a
+        // nearest-₹1 round-up would net near zero; nearest 1 unit for
+        // other currencies), minus whatever's already been swept to a
+        // goal (tracked in prefs, since Goal itself has no "source" ledger).
+        val roundUpBase = if (currency == "INR") 10.0 else 1.0
+        val totalRoundUp = rawTransactions.filter { it.type == "EXPENSE" }.sumOf { txn ->
+            val amt = convert(txn.amount, txn.currency, currency)
+            val remainder = amt % roundUpBase
+            if (remainder <= 0.0001) 0.0 else roundUpBase - remainder
+        }
+        val sweptRoundUp = prefs.getString("swept_roundup_total", "0")?.toDoubleOrNull() ?: 0.0
+        val pendingRoundUp = (totalRoundUp - sweptRoundUp).coerceAtLeast(0.0)
+
         FinanceUiState(
             transactions = rawTransactions,
             filteredTransactions = filtered,
@@ -398,7 +432,8 @@ class FinanceViewModel(
             categories = categories,
             isLoading = isLoading,
             subscriptions = subscriptionAlerts,
-            cashFlowForecast = cashFlowForecast
+            cashFlowForecast = cashFlowForecast,
+            pendingRoundUpTotal = pendingRoundUp
         )
     }.stateIn(
         scope = viewModelScope,
@@ -575,6 +610,20 @@ class FinanceViewModel(
     fun updateGoalProgress(goal: Goal, saved: Double) {
         viewModelScope.launch {
             repository.updateGoal(goal.copy(savedAmount = saved))
+        }
+    }
+
+    // Sweeps the current pendingRoundUpTotal into the chosen goal's saved
+    // amount, then records the swept amount in prefs so it isn't offered
+    // again (pendingRoundUpTotal is always "total round-up minus already
+    // swept", recomputed live in the uiState combine chain above).
+    fun sweepRoundUpToGoal(goal: Goal) {
+        val pending = uiState.value.pendingRoundUpTotal
+        if (pending <= 0.0) return
+        viewModelScope.launch {
+            repository.updateGoal(goal.copy(savedAmount = goal.savedAmount + pending))
+            val current = prefs.getString("swept_roundup_total", "0")?.toDoubleOrNull() ?: 0.0
+            prefs.edit().putString("swept_roundup_total", (current + pending).toString()).apply()
         }
     }
 
