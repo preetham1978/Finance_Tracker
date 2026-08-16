@@ -28,7 +28,8 @@ class FinanceApplication : Application() {
             database.transactionDao(),
             database.goalDao(),
             database.budgetDao(),
-            database.categoryDao()
+            database.categoryDao(),
+            database.holdingDao()
         )
     }
 

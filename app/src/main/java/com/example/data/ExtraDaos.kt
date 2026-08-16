@@ -32,3 +32,18 @@ interface BudgetDao {
     @Delete
     suspend fun deleteBudget(budget: Budget)
 }
+
+@Dao
+interface HoldingDao {
+    @Query("SELECT * FROM holdings ORDER BY id DESC")
+    fun getAllHoldings(): Flow<List<Holding>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertHolding(holding: Holding)
+
+    @Update
+    suspend fun updateHolding(holding: Holding)
+
+    @Delete
+    suspend fun deleteHolding(holding: Holding)
+}

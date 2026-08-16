@@ -8,10 +8,12 @@ import com.example.data.Transaction
 import com.example.data.Goal
 import com.example.data.Budget
 import com.example.data.Category
+import com.example.data.Holding
 import com.example.data.TransactionRepository
 import com.google.firebase.auth.FirebaseAuth
 import com.example.data.api.GeminiManager
 import com.example.data.api.CloudSyncManager
+import com.example.data.api.MarketDataService
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
@@ -56,6 +58,16 @@ data class FinanceUiState(
 
     // Round-up savings not yet swept into a goal (see sweepRoundUpToGoal).
     val pendingRoundUpTotal: Double = 0.0
+)
+
+// Investment portfolio summary — see holdings/portfolioSummary StateFlows
+// below. Kept independent of FinanceUiState/the big combine chain, same
+// pattern as darkThemeMode/taxCountry, since it's not needed by most tabs.
+data class PortfolioSummary(
+    val totalInvested: Double = 0.0,
+    val currentValue: Double = 0.0,
+    val gainLoss: Double = 0.0,
+    val gainLossPercent: Double = 0.0
 )
 
 data class AdvisorState(
@@ -109,6 +121,93 @@ class FinanceViewModel(
     fun setNotifCaptureEnabled(enabled: Boolean) {
         _notifCaptureEnabled.value = enabled
         prefs.edit().putBoolean("notif_capture_enabled", enabled).apply()
+    }
+
+    // Investment portfolio (stocks/mutual funds/crypto/gold). Mutual funds
+    // and crypto get live prices via MarketDataService (AMFI / CoinGecko,
+    // both free/no-key); everything else uses manualCurrentPrice, which the
+    // user updates themselves. currentPriceOf() is the single place that
+    // decides which price wins for a given holding — used both here and by
+    // the Cards & Loans UI.
+    val holdings: StateFlow<List<Holding>> = repository.allHoldings
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    fun currentPriceOf(holding: Holding): Double {
+        return when {
+            holding.lastFetchedPrice > 0.0 -> holding.lastFetchedPrice
+            holding.manualCurrentPrice > 0.0 -> holding.manualCurrentPrice
+            else -> holding.avgBuyPrice
+        }
+    }
+
+    val portfolioSummary: StateFlow<PortfolioSummary> = holdings.map { list ->
+        val invested = list.sumOf { it.quantity * it.avgBuyPrice }
+        val current = list.sumOf { it.quantity * currentPriceOf(it) }
+        val gain = current - invested
+        val gainPct = if (invested > 0.0) (gain / invested) * 100.0 else 0.0
+        PortfolioSummary(invested, current, gain, gainPct)
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), PortfolioSummary())
+
+    fun addHolding(
+        name: String,
+        assetType: String,
+        identifier: String?,
+        quantity: Double,
+        avgBuyPrice: Double,
+        currency: String = "INR",
+        manualCurrentPrice: Double = 0.0
+    ) {
+        if (name.isBlank() || quantity <= 0.0 || avgBuyPrice <= 0.0) return
+        viewModelScope.launch {
+            repository.insertHolding(
+                Holding(
+                    name = name.trim(),
+                    assetType = assetType,
+                    identifier = identifier?.trim()?.ifBlank { null },
+                    quantity = quantity,
+                    avgBuyPrice = avgBuyPrice,
+                    currency = currency,
+                    manualCurrentPrice = manualCurrentPrice
+                )
+            )
+        }
+    }
+
+    fun updateManualPrice(holding: Holding, price: Double) {
+        if (price <= 0.0) return
+        viewModelScope.launch {
+            repository.updateHolding(holding.copy(manualCurrentPrice = price))
+        }
+    }
+
+    fun deleteHolding(holding: Holding) {
+        viewModelScope.launch {
+            repository.deleteHolding(holding)
+        }
+    }
+
+    /** Refreshes the live price for one holding (MUTUAL_FUND/CRYPTO only; no-op for others). */
+    fun refreshLivePrice(holding: Holding) {
+        val identifier = holding.identifier ?: return
+        viewModelScope.launch {
+            val price = when (holding.assetType) {
+                "MUTUAL_FUND" -> MarketDataService.fetchMutualFundNav(identifier)
+                "CRYPTO" -> MarketDataService.fetchCryptoPrice(identifier, holding.currency)
+                else -> null
+            }
+            if (price != null && price > 0.0) {
+                repository.updateHolding(
+                    holding.copy(lastFetchedPrice = price, lastFetchedTimestamp = System.currentTimeMillis())
+                )
+            }
+        }
+    }
+
+    /** Refreshes every mutual fund / crypto holding's live price. */
+    fun refreshAllLivePrices() {
+        holdings.value
+            .filter { it.assetType == "MUTUAL_FUND" || it.assetType == "CRYPTO" }
+            .forEach { refreshLivePrice(it) }
     }
 
     // Google Cloud Synchronization and Auth States

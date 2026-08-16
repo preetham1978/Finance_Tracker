@@ -409,5 +409,376 @@ fun CardsLoansTab(viewModel: FinanceViewModel) {
                 }
             }
         }
+
+        // Investment Portfolio Section — Mutual Funds & Crypto get live
+        // prices (AMFI / CoinGecko, both free, no API key); Stocks & Gold
+        // are manually priced since there's no equivalent free, reliable
+        // live source for those.
+        val holdings by viewModel.holdings.collectAsState()
+        val portfolioSummary by viewModel.portfolioSummary.collectAsState()
+        var showAddHoldingDialog by remember { mutableStateOf(false) }
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "Investment Portfolio",
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onBackground
+            )
+            IconButton(onClick = { showAddHoldingDialog = true }) {
+                Icon(Icons.Filled.Add, contentDescription = "Add Holding", tint = MaterialTheme.colorScheme.primary)
+            }
+        }
+
+        if (holdings.isNotEmpty()) {
+            BrutalCard(
+                modifier = Modifier.fillMaxWidth(),
+                backgroundColor = MaterialTheme.colorScheme.primaryContainer
+            ) {
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Column {
+                            Text("Invested", fontSize = 11.sp, color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f))
+                            Text("₹${String.format("%,.0f", portfolioSummary.totalInvested)}", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                        }
+                        Column(horizontalAlignment = Alignment.End) {
+                            Text("Current Value", fontSize = 11.sp, color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f))
+                            Text("₹${String.format("%,.0f", portfolioSummary.currentValue)}", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                        }
+                    }
+                    val gainColor = if (portfolioSummary.gainLoss >= 0) Color(0xFF2E7D32) else Color(0xFFC62828)
+                    val gainSign = if (portfolioSummary.gainLoss >= 0) "+" else ""
+                    Text(
+                        text = "$gainSign₹${String.format("%,.0f", portfolioSummary.gainLoss)} ($gainSign${String.format("%.1f", portfolioSummary.gainLossPercent)}%)",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 13.sp,
+                        color = gainColor
+                    )
+                    TextButton(
+                        onClick = { viewModel.refreshAllLivePrices() },
+                        contentPadding = PaddingValues(0.dp)
+                    ) {
+                        Icon(Icons.Filled.Refresh, contentDescription = null, modifier = Modifier.size(14.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Refresh mutual fund & crypto prices", fontSize = 11.sp)
+                    }
+                }
+            }
+
+            holdings.forEach { holding ->
+                HoldingCard(
+                    holding = holding,
+                    currentPrice = viewModel.currentPriceOf(holding),
+                    onRefresh = { viewModel.refreshLivePrice(holding) },
+                    onUpdateManualPrice = { price -> viewModel.updateManualPrice(holding, price) },
+                    onDelete = { viewModel.deleteHolding(holding) }
+                )
+            }
+        } else {
+            BrutalCard(modifier = Modifier.fillMaxWidth()) {
+                Column(
+                    modifier = Modifier.padding(24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    Text("📈", fontSize = 28.sp)
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        "No investments tracked yet.",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        "Tap + above to add a mutual fund, stock, crypto, or gold holding.",
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                        textAlign = TextAlign.Center
+                    )
+                }
+            }
+        }
+
+        if (showAddHoldingDialog) {
+            AddHoldingDialog(
+                onDismiss = { showAddHoldingDialog = false },
+                onConfirm = { name, assetType, identifier, quantity, avgBuyPrice, manualPrice ->
+                    viewModel.addHolding(
+                        name = name,
+                        assetType = assetType,
+                        identifier = identifier,
+                        quantity = quantity,
+                        avgBuyPrice = avgBuyPrice,
+                        currency = uiState.activeCurrency,
+                        manualCurrentPrice = manualPrice
+                    )
+                    showAddHoldingDialog = false
+                }
+            )
+        }
     }
+}
+
+private val ASSET_TYPES = listOf(
+    "MUTUAL_FUND" to "Mutual Fund",
+    "STOCK" to "Stock",
+    "CRYPTO" to "Crypto",
+    "GOLD" to "Gold",
+    "OTHER" to "Other"
+)
+
+@Composable
+private fun HoldingCard(
+    holding: com.example.data.Holding,
+    currentPrice: Double,
+    onRefresh: () -> Unit,
+    onUpdateManualPrice: (Double) -> Unit,
+    onDelete: () -> Unit
+) {
+    val symbol = FinanceViewModel.currencySymbols[holding.currency] ?: "₹"
+    val currentValue = holding.quantity * currentPrice
+    val investedValue = holding.quantity * holding.avgBuyPrice
+    val gain = currentValue - investedValue
+    val gainPct = if (investedValue > 0) (gain / investedValue) * 100.0 else 0.0
+    val gainColor = if (gain >= 0) Color(0xFF2E7D32) else Color(0xFFC62828)
+    val isLivePriced = holding.assetType == "MUTUAL_FUND" || holding.assetType == "CRYPTO"
+
+    var showEditPriceDialog by remember { mutableStateOf(false) }
+
+    BrutalCard(modifier = Modifier.fillMaxWidth(), cornerRadius = 14.dp) {
+        Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(holding.name, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                    Text(
+                        text = ASSET_TYPES.find { it.first == holding.assetType }?.second ?: holding.assetType,
+                        fontSize = 10.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Row {
+                    if (isLivePriced) {
+                        IconButton(onClick = onRefresh, modifier = Modifier.size(32.dp)) {
+                            Icon(Icons.Filled.Refresh, contentDescription = "Refresh price", modifier = Modifier.size(16.dp))
+                        }
+                    } else {
+                        IconButton(onClick = { showEditPriceDialog = true }, modifier = Modifier.size(32.dp)) {
+                            Icon(Icons.Filled.Edit, contentDescription = "Update price", modifier = Modifier.size(16.dp))
+                        }
+                    }
+                    IconButton(onClick = onDelete, modifier = Modifier.size(32.dp)) {
+                        Icon(Icons.Filled.Delete, contentDescription = "Delete", tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(16.dp))
+                    }
+                }
+            }
+
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                Text(
+                    text = "${String.format("%,.2f", holding.quantity)} units @ $symbol${String.format("%,.2f", holding.avgBuyPrice)} avg",
+                    fontSize = 11.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Text(
+                    text = "$symbol${String.format("%,.2f", currentPrice)} now",
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
+
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                Text("$symbol${String.format("%,.2f", currentValue)}", fontWeight = FontWeight.Black, fontSize = 16.sp)
+                val gainSign = if (gain >= 0) "+" else ""
+                Text(
+                    text = "$gainSign$symbol${String.format("%,.2f", gain)} ($gainSign${String.format("%.1f", gainPct)}%)",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 12.sp,
+                    color = gainColor
+                )
+            }
+        }
+    }
+
+    if (showEditPriceDialog) {
+        UpdatePriceDialog(
+            currentPrice = currentPrice,
+            symbol = symbol,
+            onDismiss = { showEditPriceDialog = false },
+            onConfirm = { price ->
+                onUpdateManualPrice(price)
+                showEditPriceDialog = false
+            }
+        )
+    }
+}
+
+@Composable
+private fun UpdatePriceDialog(
+    currentPrice: Double,
+    symbol: String,
+    onDismiss: () -> Unit,
+    onConfirm: (Double) -> Unit
+) {
+    var priceStr by remember { mutableStateOf(if (currentPrice > 0) currentPrice.toString() else "") }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Update Current Price") },
+        text = {
+            OutlinedTextField(
+                value = priceStr,
+                onValueChange = { priceStr = it },
+                label = { Text("Current Price ($symbol per unit)") },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp)
+            )
+        },
+        confirmButton = {
+            Button(
+                onClick = { priceStr.toDoubleOrNull()?.let { onConfirm(it) } },
+                enabled = priceStr.toDoubleOrNull() != null && priceStr.toDoubleOrNull()!! > 0
+            ) {
+                Text("Update")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancel") }
+        }
+    )
+}
+
+@Composable
+private fun AddHoldingDialog(
+    onDismiss: () -> Unit,
+    onConfirm: (name: String, assetType: String, identifier: String?, quantity: Double, avgBuyPrice: Double, manualPrice: Double) -> Unit
+) {
+    var name by remember { mutableStateOf("") }
+    var assetType by remember { mutableStateOf("MUTUAL_FUND") }
+    var identifier by remember { mutableStateOf("") }
+    var quantityStr by remember { mutableStateOf("") }
+    var avgPriceStr by remember { mutableStateOf("") }
+    var manualPriceStr by remember { mutableStateOf("") }
+    var typeMenuExpanded by remember { mutableStateOf(false) }
+
+    val isLiveType = assetType == "MUTUAL_FUND" || assetType == "CRYPTO"
+    val isValid = name.isNotBlank() &&
+        (quantityStr.toDoubleOrNull() ?: 0.0) > 0.0 &&
+        (avgPriceStr.toDoubleOrNull() ?: 0.0) > 0.0
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Add Investment Holding") },
+        text = {
+            Column(
+                modifier = Modifier.verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    label = { Text("Name (e.g. HDFC Flexi Cap Fund, Bitcoin, Reliance)") },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp)
+                )
+
+                Box {
+                    OutlinedTextField(
+                        value = ASSET_TYPES.find { it.first == assetType }?.second ?: assetType,
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text("Type") },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { typeMenuExpanded = true },
+                        shape = RoundedCornerShape(12.dp),
+                        trailingIcon = { Icon(Icons.Filled.ArrowDropDown, contentDescription = null) }
+                    )
+                    // Transparent clickable overlay so taps anywhere on the field open the menu
+                    Box(
+                        modifier = Modifier
+                            .matchParentSize()
+                            .clickable { typeMenuExpanded = true }
+                    )
+                    DropdownMenu(expanded = typeMenuExpanded, onDismissRequest = { typeMenuExpanded = false }) {
+                        ASSET_TYPES.forEach { (key, label) ->
+                            DropdownMenuItem(text = { Text(label) }, onClick = {
+                                assetType = key
+                                typeMenuExpanded = false
+                            })
+                        }
+                    }
+                }
+
+                if (isLiveType) {
+                    OutlinedTextField(
+                        value = identifier,
+                        onValueChange = { identifier = it },
+                        label = {
+                            Text(if (assetType == "MUTUAL_FUND") "AMFI Scheme Code (optional, enables live NAV)" else "CoinGecko Coin ID (e.g. bitcoin — optional, enables live price)")
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp)
+                    )
+                }
+
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(
+                        value = quantityStr,
+                        onValueChange = { quantityStr = it },
+                        label = { Text("Quantity/Units") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(12.dp)
+                    )
+                    OutlinedTextField(
+                        value = avgPriceStr,
+                        onValueChange = { avgPriceStr = it },
+                        label = { Text("Avg Buy Price") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(12.dp)
+                    )
+                }
+
+                OutlinedTextField(
+                    value = manualPriceStr,
+                    onValueChange = { manualPriceStr = it },
+                    label = { Text(if (isLiveType) "Current Price (optional fallback until first refresh)" else "Current Price") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp)
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    onConfirm(
+                        name,
+                        assetType,
+                        identifier.ifBlank { null },
+                        quantityStr.toDoubleOrNull() ?: 0.0,
+                        avgPriceStr.toDoubleOrNull() ?: 0.0,
+                        manualPriceStr.toDoubleOrNull() ?: 0.0
+                    )
+                },
+                enabled = isValid
+            ) {
+                Text("Add Holding")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancel") }
+        }
+    )
 }

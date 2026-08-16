@@ -6,12 +6,14 @@ class TransactionRepository(
     private val transactionDao: TransactionDao,
     private val goalDao: GoalDao,
     private val budgetDao: BudgetDao,
-    private val categoryDao: CategoryDao
+    private val categoryDao: CategoryDao,
+    private val holdingDao: HoldingDao
 ) {
     val allTransactions: Flow<List<Transaction>> = transactionDao.getAllTransactions()
     val allGoals: Flow<List<Goal>> = goalDao.getAllGoals()
     val allBudgets: Flow<List<Budget>> = budgetDao.getAllBudgets()
     val allCategories: Flow<List<Category>> = categoryDao.getAllCategories()
+    val allHoldings: Flow<List<Holding>> = holdingDao.getAllHoldings()
 
     suspend fun insertCategory(category: Category) {
         categoryDao.insertCategory(category)
@@ -48,6 +50,18 @@ class TransactionRepository(
 
     suspend fun deleteBudget(budget: Budget) {
         budgetDao.deleteBudget(budget)
+    }
+
+    suspend fun insertHolding(holding: Holding) {
+        holdingDao.insertHolding(holding)
+    }
+
+    suspend fun updateHolding(holding: Holding) {
+        holdingDao.updateHolding(holding)
+    }
+
+    suspend fun deleteHolding(holding: Holding) {
+        holdingDao.deleteHolding(holding)
     }
 
     fun getTransactionById(id: Int): Flow<Transaction?> {
