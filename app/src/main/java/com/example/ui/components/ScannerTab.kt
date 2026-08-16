@@ -28,6 +28,10 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.ui.platform.LocalContext
 import android.net.Uri
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import androidx.compose.foundation.Image
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.text.SimpleDateFormat
@@ -62,7 +66,21 @@ fun ScannerTab(viewModel: FinanceViewModel) {
     var parsedBillResult by remember { mutableStateOf<ParsedBill?>(null) }
     var analysisStatusMessage by remember { mutableStateOf("") }
 
+    var receiptThumbnail by remember { mutableStateOf<Bitmap?>(null) }
     var showImageChoiceDialog by remember { mutableStateOf(false) }
+
+    // Decodes a small, memory-safe preview thumbnail from the picked/scanned
+    // receipt so the user sees the actual photo instead of just a filename.
+    fun loadThumbnail(uri: Uri) {
+        receiptThumbnail = try {
+            context.contentResolver.openInputStream(uri)?.use { input ->
+                val options = BitmapFactory.Options().apply { inSampleSize = 4 }
+                BitmapFactory.decodeStream(input, null, options)
+            }
+        } catch (e: Exception) {
+            null
+        }
+    }
     
     // Bottom Sheet Addition Form integration
     var showAddSheetFromScanner by remember { mutableStateOf(false) }
@@ -86,6 +104,7 @@ fun ScannerTab(viewModel: FinanceViewModel) {
                     try {
                         selectedImageUri = uri
                         selectedImageName = "scanned_receipt.jpg"
+                        loadThumbnail(uri)
                         val base64 = com.example.utils.ImageUtils.getBase64FromUri(context, uri)
                         if (base64 != null) {
                             selectedImageBase64 = base64
@@ -154,6 +173,7 @@ fun ScannerTab(viewModel: FinanceViewModel) {
             try {
                 selectedImageUri = it
                 selectedImageName = "uploaded_receipt.jpg"
+                loadThumbnail(it)
                 val base64 = com.example.utils.ImageUtils.getBase64FromUri(context, it)
                 if (base64 != null) {
                     selectedImageBase64 = base64
@@ -251,12 +271,29 @@ fun ScannerTab(viewModel: FinanceViewModel) {
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             if (selectedImageUri != null) {
-                Icon(
-                    imageVector = Icons.Filled.CheckCircle,
-                    contentDescription = "Selected",
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(48.dp)
-                )
+                val thumbnail = receiptThumbnail
+                if (thumbnail != null) {
+                    Image(
+                        bitmap = thumbnail.asImageBitmap(),
+                        contentDescription = "Selected receipt preview",
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier
+                            .size(120.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .border(
+                                width = 1.dp,
+                                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.4f),
+                                shape = RoundedCornerShape(12.dp)
+                            )
+                    )
+                } else {
+                    Icon(
+                        imageVector = Icons.Filled.CheckCircle,
+                        contentDescription = "Selected",
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(48.dp)
+                    )
+                }
                 Text(
                     text = selectedImageName,
                     fontWeight = FontWeight.Bold,

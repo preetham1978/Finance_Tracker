@@ -31,6 +31,26 @@ import com.example.ui.viewmodel.FinanceViewModel
 import java.text.SimpleDateFormat
 import java.util.*
 
+// Distinct, modern palette for identifying banks at a glance in the spend
+// breakdown — deterministic per bank name so the same bank always gets the
+// same color across app restarts, instead of every dot sharing the theme's
+// secondary (yellow) color and becoming indistinguishable.
+private val bankColorPalette = listOf(
+    Color(0xFF1A73E8), // Blue
+    Color(0xFF34A853), // Green
+    Color(0xFFEA4335), // Red
+    Color(0xFF9C27B0), // Purple
+    Color(0xFFFF7043), // Orange
+    Color(0xFF00ACC1), // Teal
+    Color(0xFFEC407A), // Pink
+    Color(0xFF6366F1)  // Indigo
+)
+
+private fun colorForBank(bank: String): Color {
+    val index = Math.abs(bank.hashCode()) % bankColorPalette.size
+    return bankColorPalette[index]
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CardsLoansTab(viewModel: FinanceViewModel) {
@@ -315,7 +335,7 @@ fun CardsLoansTab(viewModel: FinanceViewModel) {
                                     modifier = Modifier
                                         .size(10.dp)
                                         .clip(CircleShape)
-                                        .background(MaterialTheme.colorScheme.secondary)
+                                        .background(colorForBank(bank))
                                 )
                                 Text(bank, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
                             }
