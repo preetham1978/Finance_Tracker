@@ -77,6 +77,20 @@ class FinanceViewModel(
     private val _darkThemeMode = MutableStateFlow(prefs.getString("theme_mode", "SYSTEM") ?: "SYSTEM")
     val darkThemeMode = _darkThemeMode.asStateFlow()
 
+    // Tax country preference — defaults to the device's region (ISO 3166-1
+    // alpha-2, e.g. "IN", "US", "GB") so a user outside India doesn't
+    // silently see Indian tax law applied to their numbers. User can
+    // override it; persisted the same way theme_mode is.
+    private val _taxCountry = MutableStateFlow(
+        prefs.getString("tax_country", null) ?: java.util.Locale.getDefault().country.ifBlank { "IN" }
+    )
+    val taxCountry = _taxCountry.asStateFlow()
+
+    fun setTaxCountry(countryCode: String) {
+        _taxCountry.value = countryCode
+        prefs.edit().putString("tax_country", countryCode).apply()
+    }
+
     // Google Cloud Synchronization and Auth States
     private val _isUserLoggedIn = MutableStateFlow(CloudSyncManager.isLoggedIn(application))
     val isUserLoggedIn = _isUserLoggedIn.asStateFlow()

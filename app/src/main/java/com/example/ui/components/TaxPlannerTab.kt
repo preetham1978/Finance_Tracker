@@ -3,6 +3,7 @@ package com.example.ui.components
 import androidx.compose.animation.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -29,7 +30,15 @@ import com.example.ui.viewmodel.FinanceViewModel
 @Composable
 fun TaxPlannerTab(viewModel: FinanceViewModel) {
     val uiState by viewModel.uiState.collectAsState()
-    
+
+    // Country the tax calculator applies to — defaults to the device's
+    // region so users outside India don't silently see Indian tax law
+    // applied to their numbers. Only India has a real calculator today;
+    // everything else shows a "coming soon" state (see TaxCountryHelper).
+    val taxCountryCode by viewModel.taxCountry.collectAsState()
+    val countryOption = remember(taxCountryCode) { TaxCountryHelper.optionFor(taxCountryCode) }
+    var countryMenuExpanded by remember { mutableStateOf(false) }
+
     // Inputs for Tax Calculator
     var grossIncomeStr by remember { mutableStateOf("1200000") }
     var deductions80CStr by remember { mutableStateOf("150000") }
@@ -78,6 +87,68 @@ fun TaxPlannerTab(viewModel: FinanceViewModel) {
             fontSize = 12.sp,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
+
+        // Country selector — lets a user override the auto-detected region
+        Box {
+            Row(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(MaterialTheme.colorScheme.surfaceVariant)
+                    .border(2.dp, MaterialTheme.colorScheme.onBackground, RoundedCornerShape(12.dp))
+                    .clickable { countryMenuExpanded = true }
+                    .padding(horizontal = 14.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text("${countryOption.flag} ${countryOption.displayName}", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                Icon(Icons.Filled.ArrowDropDown, contentDescription = "Change tax country")
+            }
+            DropdownMenu(expanded = countryMenuExpanded, onDismissRequest = { countryMenuExpanded = false }) {
+                TaxCountryHelper.supportedCountries.forEach { option ->
+                    DropdownMenuItem(
+                        text = {
+                            Text(
+                                "${option.flag} ${option.displayName}" + if (!option.isImplemented) "  •  Coming soon" else "",
+                                fontWeight = FontWeight.Bold
+                            )
+                        },
+                        onClick = {
+                            viewModel.setTaxCountry(option.code)
+                            countryMenuExpanded = false
+                        }
+                    )
+                }
+            }
+        }
+
+        if (!countryOption.isImplemented) {
+            // Coming-soon state — no tax calculator exists for this country
+            // yet, so we say so honestly instead of showing India's rules.
+            BrutalCard(modifier = Modifier.fillMaxWidth()) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(28.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(countryOption.flag, fontSize = 36.sp)
+                    Text(
+                        text = "Tax planning for ${countryOption.displayName} is coming soon!",
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        textAlign = TextAlign.Center
+                    )
+                    Text(
+                        text = "Right now Vantage Finance only calculates tax for India. We're working on adding accurate, up-to-date tax rules for more countries — switch back to India above if that was selected by mistake.",
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center
+                    )
+                }
+            }
+        } else {
 
         // Inputs Section
         BrutalCard(
@@ -265,6 +336,7 @@ fun TaxPlannerTab(viewModel: FinanceViewModel) {
                 }
             }
         }
+        } // end of countryOption.isImplemented calculator block
     }
 }
 
