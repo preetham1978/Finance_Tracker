@@ -7,51 +7,52 @@ import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 
-// Modernized "Vantage Gold" palette — keeps the brand's signature amber/gold
-// identity but restructures it for a cleaner, more premium fintech look:
-// neutral body text (not tinted yellow), a richer near-black dark surface,
-// and dedicated green/red for income vs. expense so money direction reads
-// at a glance instead of blending into the brand color.
+// "Vantage Neo" — a deliberately bold, high-contrast identity built around
+// pure black/white bases, the brand's signature gold as the one loud accent,
+// and fully-saturated (not muted) income/expense colors. Paired with the
+// hard-bordered, offset-shadow "sticker card" treatment in BrutalCard.kt,
+// this is a structural departure from the soft, low-contrast card style
+// most finance apps default to.
 val DarkColorScheme = darkColorScheme(
     primary = Color(0xFFFFD60A), // Vantage Gold
     onPrimary = Color(0xFF000000),
-    primaryContainer = Color(0xFF3D3100),
+    primaryContainer = Color(0xFF241D00),
     onPrimaryContainer = Color(0xFFFFE9A8),
     secondary = Color(0xFFFFCA28), // Warm Amber
     onSecondary = Color(0xFF000000),
-    tertiary = Color(0xFF22C55E), // Income Green
+    tertiary = Color(0xFF00E676), // Income — vivid Spring Green
     onTertiary = Color(0xFF00210A),
-    error = Color(0xFFFF5C5C), // Expense Coral-Red
-    onError = Color(0xFF3E0000),
-    errorContainer = Color(0xFF7A1F1F),
+    error = Color(0xFFFF3B3B), // Expense — hot saturated red
+    onError = Color(0xFFFFFFFF),
+    errorContainer = Color(0xFF5C1414),
     onErrorContainer = Color(0xFFFFDAD6),
-    background = Color(0xFF101014), // Rich near-black
-    onBackground = Color(0xFFF0F0F0), // Neutral body text
-    surface = Color(0xFF1B1B20),
-    onSurface = Color(0xFFF0F0F0),
-    surfaceVariant = Color(0xFF2A2A30),
-    onSurfaceVariant = Color(0xFFC7C7CE)
+    background = Color(0xFF000000), // True black
+    onBackground = Color(0xFFFFFFFF), // Pure white body text
+    surface = Color(0xFF141414),
+    onSurface = Color(0xFFFFFFFF),
+    surfaceVariant = Color(0xFF1F1F1F),
+    onSurfaceVariant = Color(0xFFB5B5B5)
 )
 
 val LightColorScheme = lightColorScheme(
-    primary = Color(0xFFF5B301), // Vantage Gold (deepened for contrast on white)
+    primary = Color(0xFFF5B301), // Vantage Gold
     onPrimary = Color(0xFF000000),
     primaryContainer = Color(0xFFFFEEB8),
     onPrimaryContainer = Color(0xFF241A00),
     secondary = Color(0xFFFFC94D), // Warm Amber
     onSecondary = Color(0xFF000000),
-    tertiary = Color(0xFF16A34A), // Income Green
+    tertiary = Color(0xFF00C853), // Income — vivid Spring Green
     onTertiary = Color(0xFFFFFFFF),
-    error = Color(0xFFDC2626), // Expense Red
+    error = Color(0xFFFF3B30), // Expense — hot saturated red
     onError = Color(0xFFFFFFFF),
     errorContainer = Color(0xFFFFDAD6),
     onErrorContainer = Color(0xFF410002),
-    background = Color(0xFFFAFAF7), // Warm off-white
-    onBackground = Color(0xFF1A1A1A),
+    background = Color(0xFFFFFFFF), // Crisp paper white
+    onBackground = Color(0xFF000000), // Pure black body text
     surface = Color(0xFFFFFFFF),
-    onSurface = Color(0xFF1A1A1A),
-    surfaceVariant = Color(0xFFF2F2ED),
-    onSurfaceVariant = Color(0xFF54544D)
+    onSurface = Color(0xFF000000),
+    surfaceVariant = Color(0xFFF5F5F5),
+    onSurfaceVariant = Color(0xFF4A4A4A)
 )
 
 @Composable

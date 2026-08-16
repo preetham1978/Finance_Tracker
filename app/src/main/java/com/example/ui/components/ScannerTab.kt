@@ -230,10 +230,9 @@ fun ScannerTab(viewModel: FinanceViewModel) {
             modifier = Modifier.fillMaxWidth()
         )
 
-        Card(
+        BrutalCard(
             modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)),
-            shape = RoundedCornerShape(16.dp)
+            backgroundColor = MaterialTheme.colorScheme.surfaceVariant
         ) {
             Column(
                 modifier = Modifier.padding(16.dp),
@@ -254,16 +253,17 @@ fun ScannerTab(viewModel: FinanceViewModel) {
             }
         }
 
-        // Upload receipt photo UI
+        // Upload receipt photo UI — bold dashed-style outline matching the
+        // "Vantage Neo" hard-border treatment instead of a faint 1dp hint.
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(16.dp))
-                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f))
+                .clip(RoundedCornerShape(12.dp))
+                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
                 .border(
-                    width = 1.dp,
-                    color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f),
-                    shape = RoundedCornerShape(16.dp)
+                    width = 2.dp,
+                    color = MaterialTheme.colorScheme.onBackground,
+                    shape = RoundedCornerShape(12.dp)
                 )
                 .clickable { showImageChoiceDialog = true }
                 .padding(24.dp),
@@ -392,12 +392,11 @@ fun ScannerTab(viewModel: FinanceViewModel) {
 
         // Parsed Result card
         parsedBillResult?.let { bill ->
-            Card(
+            BrutalCard(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(vertical = 8.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-                shape = RoundedCornerShape(16.dp)
+                backgroundColor = MaterialTheme.colorScheme.surfaceVariant
             ) {
                 Column(
                     modifier = Modifier.padding(16.dp),
