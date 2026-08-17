@@ -7,19 +7,8 @@ import android.util.Log
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.text.TextRecognition
 import com.google.mlkit.vision.text.latin.TextRecognizerOptions
-import kotlinx.coroutines.resume
 import kotlinx.coroutines.suspendCancellableCoroutine
 
-/**
- * On-device OCR fallback for the bill scanner. Runs entirely on-device via
- * ML Kit's Text Recognition -- no network call, no API key, no billing --
- * added after Gemini's prepay billing kept hitting zero and OpenRouter's
- * free vision tier proved too unreliable (multi-minute "Upstream idle
- * timeout" failures, see GeminiManager.analyzeBill() history). Unlike a
- * second cloud provider, this can never be rate-limited, timed out, or
- * billing-gated, so it guarantees the scanner extracts *something* useful
- * even when every cloud AI provider is unavailable.
- */
 object OcrManager {
     private const val TAG = "OcrManager"
 
@@ -27,7 +16,6 @@ object OcrManager {
         TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
     }
 
-    /** Runs on-device OCR against the same base64 JPEG payload used for the cloud calls. */
     suspend fun recognizeTextFromBase64(billBase64: String): String? {
         val bitmap = try {
             val bytes = Base64.decode(billBase64, Base64.NO_WRAP)
@@ -45,33 +33,18 @@ object OcrManager {
             val image = InputImage.fromBitmap(bitmap, 0)
             recognizer.process(image)
                 .addOnSuccessListener { visionText ->
-                    if (cont.isActive) cont.resume(visionText.text)
+                    if (cont.isActive) cont.resumeWith(Result.success(visionText.text))
                 }
                 .addOnFailureListener { e ->
                     Log.e(TAG, "On-device OCR failed", e)
-                    if (cont.isActive) cont.resume(null)
+                    if (cont.isActive) cont.resumeWith(Result.success(null))
                 }
         } catch (e: Exception) {
             Log.e(TAG, "Error starting on-device OCR", e)
-            if (cont.isActive) cont.resume(null)
+            if (cont.isActive) cont.resumeWith(Result.success(null))
         }
     }
 
-    /**
-     * Turns raw OCR'd receipt text into a ParsedBill using simple heuristics --
-     * no LLM involved. Receipts differ from the bank-SMS text
-     * GeminiManager.getMockTextAnalysis() was tuned for (a masked SMS line vs.
-     * a multi-line printed receipt/GPay screenshot), so this uses
-     * receipt-shaped rules instead:
-     *  - Title: first substantial text line, since the store/merchant name is
-     *    almost always the header on a printed receipt or payment screenshot.
-     *  - Amount: prefers a number next to "total"/"grand total"/"amount
-     *    paid"/"net payable"/"amount due"; falls back to the largest number
-     *    found, since the total is nearly always the biggest figure on a
-     *    receipt.
-     *  - Category: reuses GeminiManager's existing offline keyword-based
-     *    category matcher against the merchant name plus the full OCR text.
-     */
     fun parseReceiptText(rawText: String, billFileName: String): ParsedBill {
         if (rawText.isBlank()) {
             return ParsedBill(
@@ -87,7 +60,7 @@ object OcrManager {
 
         val title = lines.firstOrNull { line ->
             line.length in 2..40 && line.any { it.isLetter() } &&
-                line.count { it.isDigit() } < line.length / 2
+                    line.count { it.isDigit() } < line.length / 2
         } ?: "Unknown Transaction"
 
         val totalKeywordRegex = Regex(
