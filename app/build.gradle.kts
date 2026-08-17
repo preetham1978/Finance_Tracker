@@ -30,6 +30,10 @@ android {
         }
         val geminiKey = System.getenv("GEMINI_API_KEY") ?: ""
         buildConfigField("String", "GEMINI_API_KEY", "\"$geminiKey\"") // force rebuild
+        // Free-tier Groq key (console.groq.com/keys), used as a fallback
+        // text-generation provider when Gemini fails -- see GroqApiService.kt.
+        val groqKey = System.getenv("GROQ_API_KEY") ?: ""
+        buildConfigField("String", "GROQ_API_KEY", "\"$groqKey\"")
     }
     signingConfigs {
         create("release") {
@@ -53,6 +57,8 @@ android {
         debug {
             val geminiKey = System.getenv("GEMINI_API_KEY") ?: ""
             buildConfigField("String", "GEMINI_API_KEY", "\"$geminiKey\"")
+            val groqKey = System.getenv("GROQ_API_KEY") ?: ""
+            buildConfigField("String", "GROQ_API_KEY", "\"$groqKey\"")
         }
     }
     compileOptions {
@@ -103,6 +109,9 @@ dependencies {
     implementation(libs.firebase.auth)
     implementation(libs.play.services.auth)
     implementation(libs.play.services.mlkit.document.scanner)
+    // On-device text recognition (OCR) -- powers the bill scanner's
+    // reliable, billing-free fallback path in OcrManager.kt.
+    implementation(libs.mlkit.text.recognition)
     implementation(libs.firebase.analytics)
     implementation(libs.firebase.crashlytics)
     testImplementation(libs.junit)
