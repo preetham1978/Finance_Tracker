@@ -56,8 +56,6 @@ import kotlinx.coroutines.launch
 @Composable
 fun ScannerTab(viewModel: FinanceViewModel) {
     val context = LocalContext.current
-    val coroutineScope = rememberCoroutineScope()
-    
     // Receipt Scan states
     var selectedImageUri by remember { mutableStateOf<Uri?>(null) }
     var selectedImageBase64 by remember { mutableStateOf("") }
@@ -65,6 +63,7 @@ fun ScannerTab(viewModel: FinanceViewModel) {
     var isAnalyzingBill by remember { mutableStateOf(false) }
     var parsedBillResult by remember { mutableStateOf<ParsedBill?>(null) }
     var analysisStatusMessage by remember { mutableStateOf("") }
+    var hasAnalyzedOnce by remember { mutableStateOf(false) }
 
     var receiptThumbnail by remember { mutableStateOf<Bitmap?>(null) }
     var showImageChoiceDialog by remember { mutableStateOf(false) }
@@ -92,6 +91,51 @@ fun ScannerTab(viewModel: FinanceViewModel) {
 
     val scope = rememberCoroutineScope()
 
+    // Single entry point for bill analysis.
+    //
+    // Previously the camera/gallery launchers each fired their own
+    // GeminiManager.analyzeBill() call the moment an image was picked, while
+    // the "Analyze" button fired a second, independent one. Two calls per
+    // photo meant two billed requests and two answers that could disagree
+    // (and the button's copy overwrote parsedBillResult with no blur check).
+    // Everything now funnels through here so one photo means one call.
+    fun runAnalysis(base64: String, name: String) {
+        if (base64.isEmpty() || isAnalyzingBill) return
+        scope.launch {
+            isAnalyzingBill = true
+            parsedBillResult = null
+            analysisStatusMessage = "Analyzing..."
+            try {
+                val parsed = GeminiManager.analyzeBill(base64, name)
+                if (parsed != null) {
+                    if (parsed.title == "Unknown Transaction") {
+                        parsedBillResult = null
+                        analysisStatusMessage = "The receipt was too blurry to read, please try again."
+                        Toast.makeText(
+                            context,
+                            "The receipt was too blurry to read, please try again.",
+                            Toast.LENGTH_LONG
+                        ).show()
+                    } else {
+                        parsedBillResult = parsed
+                        prefilledTitle = parsed.title
+                        prefilledAmount = parsed.amount
+                        prefilledCurrency = parsed.currency
+                        prefilledCategory = parsed.category
+                        analysisStatusMessage = "Bill parsed successfully!"
+                    }
+                } else {
+                    analysisStatusMessage = "Analysis failed."
+                }
+            } catch (e: Exception) {
+                analysisStatusMessage = "Analysis failed: ${e.message}"
+            } finally {
+                isAnalyzingBill = false
+                hasAnalyzedOnce = true
+            }
+        }
+    }
+
     // Launcher for Camera
     val scannerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartIntentSenderForResult()
@@ -108,26 +152,8 @@ fun ScannerTab(viewModel: FinanceViewModel) {
                         val base64 = com.example.utils.ImageUtils.getBase64FromUri(context, uri)
                         if (base64 != null) {
                             selectedImageBase64 = base64
-                            analysisStatusMessage = "Analyzing..."
-                            scope.launch {
-                                val parsed = GeminiManager.analyzeBill(selectedImageBase64, selectedImageName)
-                                if (parsed != null) {
-                                    if (parsed.title == "Unknown Transaction") {
-                                        parsedBillResult = null
-                                        analysisStatusMessage = "The receipt was too blurry to read, please try again."
-                                        android.widget.Toast.makeText(context, "The receipt was too blurry to read, please try again.", android.widget.Toast.LENGTH_LONG).show()
-                                    } else {
-                                        parsedBillResult = parsed
-                                        prefilledTitle = parsed.title
-                                        prefilledAmount = parsed.amount
-                                        prefilledCurrency = parsed.currency
-                                        prefilledCategory = parsed.category
-                                        analysisStatusMessage = "Bill parsed successfully!"
-                                    }
-                                } else {
-                                    analysisStatusMessage = "Analysis failed."
-                                }
-                            }
+                            hasAnalyzedOnce = false
+                            runAnalysis(base64, selectedImageName)
                         } else {
                             analysisStatusMessage = "Failed to read image bytes."
                         }
@@ -182,26 +208,8 @@ fun ScannerTab(viewModel: FinanceViewModel) {
                 val base64 = com.example.utils.ImageUtils.getBase64FromUri(context, it)
                 if (base64 != null) {
                     selectedImageBase64 = base64
-                    analysisStatusMessage = "Analyzing..."
-                    scope.launch {
-                        val parsed = GeminiManager.analyzeBill(selectedImageBase64, selectedImageName)
-                        if (parsed != null) {
-                            if (parsed.title == "Unknown Transaction") {
-                                parsedBillResult = null
-                                analysisStatusMessage = "The receipt was too blurry to read, please try again."
-                                android.widget.Toast.makeText(context, "The receipt was too blurry to read, please try again.", android.widget.Toast.LENGTH_LONG).show()
-                            } else {
-                                parsedBillResult = parsed
-                                prefilledTitle = parsed.title
-                                prefilledAmount = parsed.amount
-                                prefilledCurrency = parsed.currency
-                                prefilledCategory = parsed.category
-                                analysisStatusMessage = "Bill parsed successfully!"
-                            }
-                        } else {
-                            analysisStatusMessage = "Analysis failed."
-                        }
-                    }
+                    hasAnalyzedOnce = false
+                    runAnalysis(base64, selectedImageName)
                 } else {
                     analysisStatusMessage = "Failed to read image bytes."
                 }
@@ -367,17 +375,10 @@ fun ScannerTab(viewModel: FinanceViewModel) {
             )
         }
 
-        // Trigger button
+        // Trigger button. The first pass already runs automatically as soon as
+        // an image is picked, so this is a manual re-run once that has happened.
         Button(
-            onClick = {
-                coroutineScope.launch {
-                    isAnalyzingBill = true
-                    parsedBillResult = null
-                    val result = GeminiManager.analyzeBill(selectedImageBase64, selectedImageName)
-                    parsedBillResult = result
-                    isAnalyzingBill = false
-                }
-            },
+            onClick = { runAnalysis(selectedImageBase64, selectedImageName) },
             enabled = !isAnalyzingBill && selectedImageBase64.isNotEmpty(),
             modifier = Modifier
                 .fillMaxWidth()
@@ -390,9 +391,12 @@ fun ScannerTab(viewModel: FinanceViewModel) {
                 Spacer(modifier = Modifier.width(8.dp))
                 Text("Gemini is parsing...")
             } else {
-                Icon(Icons.Filled.AutoAwesome, contentDescription = null)
+                Icon(
+                    if (hasAnalyzedOnce) Icons.Filled.Refresh else Icons.Filled.AutoAwesome,
+                    contentDescription = null
+                )
                 Spacer(modifier = Modifier.width(8.dp))
-                Text("Analyze with Gemini AI")
+                Text(if (hasAnalyzedOnce) "Re-analyze" else "Analyze with Gemini AI")
             }
         }
 
