@@ -289,10 +289,20 @@ class FinanceViewModel(
         }
         
         viewModelScope.launch {
+            // Re-seed whenever the categories table is actually empty, rather
+            // than gating on a SharedPreferences "already populated" flag.
+            // The old flag-based check broke after a Room version bump: a
+            // fallbackToDestructiveMigration() wipe clears the DB but has no
+            // effect on SharedPreferences, so the flag stayed "true" and the
+            // categories table was left permanently empty after any schema
+            // change. Checking emptiness directly is self-healing across
+            // migrations; the only tradeoff is that a user who deliberately
+            // deletes every single category will see the defaults return on
+            // next launch, which is a safer failure mode than losing them
+            // for good.
             val categories = repository.allCategories.first()
-            if (categories.isEmpty() && !prefs.getBoolean("default_categories_populated", false)) {
+            if (categories.isEmpty()) {
                 populateDefaultCategories()
-                prefs.edit().putBoolean("default_categories_populated", true).apply()
             }
         }
     }

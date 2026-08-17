@@ -40,6 +40,16 @@ object AppLockManager {
             .getBoolean(KEY_ENABLED, false)
     }
 
+    // One-shot flag: set right before launching an external picker/scanner
+    // activity (document scanner, gallery) that momentarily takes MainActivity
+    // through onStop. Without this, App Lock would re-lock on every such trip
+    // and the returning recomposition would tear down whatever screen/state
+    // (e.g. the Add Transaction sheet mid-scan) was showing before it left.
+    // Consumed (and cleared) by MainActivity.onStop() the very next time it
+    // fires, so a real backgrounding right after still locks normally.
+    @Volatile
+    var suppressNextLock: Boolean = false
+
     private fun hash(pin: String, salt: String): String {
         val digest = MessageDigest.getInstance("SHA-256")
         val bytes = digest.digest((salt + pin).toByteArray())

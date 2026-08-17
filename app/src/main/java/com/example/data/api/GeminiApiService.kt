@@ -16,7 +16,15 @@ import java.security.MessageDigest
 import java.util.concurrent.TimeUnit
 
 interface GeminiApiService {
-    @POST("v1beta/models/gemini-3.1-flash-lite-preview:generateContent")
+    // Was pointed at the "-preview" variant, which Google has since
+    // superseded with a GA release under this non-preview model id. The old
+    // preview endpoint appears to now require paid/prepay billing even for
+    // light use, while this GA id is explicitly free-tier eligible for
+    // text/image/video input as of Google's current pricing docs (checked
+    // Aug 2026). If Google renames/retires this model again in the future,
+    // swap the id here to whatever ai.google.dev/gemini-api/docs/pricing
+    // lists as the current free-tier Flash-Lite model.
+    @POST("v1beta/models/gemini-3.1-flash-lite:generateContent")
     suspend fun generateContent(
         @Query("key") apiKey: String,
         @Body request: GenerateContentRequest

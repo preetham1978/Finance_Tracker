@@ -222,6 +222,10 @@ fun AddTransactionSheet(
             val scanner = GmsDocumentScanning.getClient(options)
             scanner.getStartScanIntent(context as Activity)
                 .addOnSuccessListener { intentSender ->
+                    // Leaving MainActivity for the scanner UI will trigger
+                    // onStop() -> would re-lock the app under App Lock. Mark
+                    // this trip as expected so it doesn't.
+                    AppLockManager.suppressNextLock = true
                     aiScannerLauncher.launch(IntentSenderRequest.Builder(intentSender).build())
                 }
                 .addOnFailureListener { e ->
@@ -429,6 +433,7 @@ fun AddTransactionSheet(
                                 dismissButton = {
                                     TextButton(onClick = {
                                         showAiImageChoiceDialog = false
+                                        AppLockManager.suppressNextLock = true
                                         aiGalleryLauncher.launch("image/*")
                                     }) {
                                         Text("Gallery")

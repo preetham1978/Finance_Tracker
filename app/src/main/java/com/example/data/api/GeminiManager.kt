@@ -115,7 +115,7 @@ object GeminiManager {
             )
         }
         if (!isApiKeyAvailable()) {
-            Log.d(TAG, "Gemini API key is not available, falling back to mock bill analysis")
+            Log.d(TAG, "Gemini API key is not available, falling back to mock")
             return@withContext getMockBillAnalysis(billFileName)
         }
         

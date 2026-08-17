@@ -155,6 +155,11 @@ fun ScannerTab(viewModel: FinanceViewModel) {
             val scanner = GmsDocumentScanning.getClient(options)
             scanner.getStartScanIntent(context as Activity)
                 .addOnSuccessListener { intentSender ->
+                    // Same App Lock trip-out guard as AddTransactionSheet's
+                    // scanner: leaving MainActivity for the scanner UI
+                    // triggers onStop() which would otherwise re-lock the app
+                    // and blow away this screen's in-progress scan state.
+                    AppLockManager.suppressNextLock = true
                     scannerLauncher.launch(IntentSenderRequest.Builder(intentSender).build())
                 }
                 .addOnFailureListener { e ->
@@ -343,6 +348,7 @@ fun ScannerTab(viewModel: FinanceViewModel) {
                 dismissButton = {
                     TextButton(onClick = {
                         showImageChoiceDialog = false
+                        AppLockManager.suppressNextLock = true
                         galleryLauncher.launch("image/*")
                     }) {
                         Text("Gallery")

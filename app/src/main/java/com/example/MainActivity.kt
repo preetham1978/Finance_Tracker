@@ -66,7 +66,14 @@ class MainActivity : ComponentActivity() {
     override fun onStop() {
         super.onStop()
         if (AppLockManager.isEnabled(this)) {
-            isUnlocked.value = false
+            if (AppLockManager.suppressNextLock) {
+                // We just launched an internal picker/scanner (document scan,
+                // gallery) — this onStop is that trip out, not the user
+                // leaving the app. Consume the flag and skip the re-lock.
+                AppLockManager.suppressNextLock = false
+            } else {
+                isUnlocked.value = false
+            }
         }
     }
 
