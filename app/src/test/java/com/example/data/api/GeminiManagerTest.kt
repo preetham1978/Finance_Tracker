@@ -1,7 +1,6 @@
 package com.example.data.api
 
-import com.example.BuildConfig
-import org.junit.Assert.assertTrue
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Test
@@ -15,9 +14,16 @@ import org.robolectric.annotation.Config
 class GeminiManagerTest {
     @Test
     fun testApiKeyAvailability() {
-        val apiKey = BuildConfig.GEMINI_API_KEY
+        // Cloud AI now goes through a backend proxy authenticated by the
+        // signed-in user's Firebase ID token (see GeminiManager.kt /
+        // functions/index.js), instead of a BuildConfig-embedded API key.
+        // isApiKeyAvailable() is really "is cloud AI reachable", which is
+        // now equivalent to "is someone signed in" -- Robolectric starts
+        // with no signed-in FirebaseAuth user (same baseline other tests
+        // in this suite rely on, e.g. EditProfileDialogTest), so this
+        // should be false here.
         val isAvailable = GeminiManager.isApiKeyAvailable()
-        assertTrue("API Key should be available: '\$apiKey'", isAvailable)
+        assertFalse("Cloud AI should not be available with no signed-in user", isAvailable)
     }
 
     @Test

@@ -15,6 +15,7 @@ retrofit = "2.9.0"
 okhttp = "4.12.0"
 gson = "2.10.1"
 mlkitTextRecognition = "16.0.1"
+billing = "6.2.1"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -49,6 +50,11 @@ firebase-crashlytics = { group = "com.google.firebase", name = "firebase-crashly
 play-services-auth = { group = "com.google.android.gms", name = "play-services-auth", version = "21.0.0" }
 play-services-mlkit-document-scanner = { group = "com.google.android.gms", name = "play-services-mlkit-document-scanner", version = "16.0.0-beta1" }
 mlkit-text-recognition = { group = "com.google.mlkit", name = "text-recognition", version.ref = "mlkitTextRecognition" }
+# Google Play Billing Library, for the Professional/Professional Plus
+# subscription purchase flow (see BillingManager.kt). -ktx brings the
+# coroutine-friendly suspend-fun wrappers (queryProductDetails(),
+# purchasesUpdatedFlow, etc.) instead of only the plain-callback API.
+billing-ktx = { group = "com.android.billingclient", name = "billing-ktx", version.ref = "billing" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

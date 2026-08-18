@@ -1,8 +1,9 @@
 package com.example.data.api
 
 import android.util.Log
-import com.example.BuildConfig
+import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
 
 /**
@@ -10,22 +11,26 @@ import kotlinx.coroutines.withContext
  * shape of the old OpenRouterManager so GeminiManager can call this as a
  * same-purpose fallback for getSpendInsights()/getTaxSavingInsights() when
  * the Gemini call itself fails. See GroqApiService.kt for why this
- * provider was added.
+ * provider was added, and for why it's now called through our backend
+ * proxy with a Firebase ID token rather than an embedded Groq API key.
  */
 object GroqManager {
     private const val TAG = "GroqManager"
 
     fun isApiKeyAvailable(): Boolean {
-        return BuildConfig.GROQ_API_KEY.isNotEmpty() && BuildConfig.GROQ_API_KEY != "PLACEHOLDER_KEY"
+        return FirebaseAuth.getInstance().currentUser != null
     }
 
     suspend fun generateText(systemPrompt: String, userPrompt: String): String? =
         withContext(Dispatchers.IO) {
-            if (!isApiKeyAvailable()) {
-                Log.d(TAG, "Groq fallback skipped: GROQ_API_KEY is not set (empty or placeholder) in this build")
+            val user = FirebaseAuth.getInstance().currentUser
+            if (user == null) {
+                Log.d(TAG, "Groq fallback skipped: not signed in, so the backend proxy has no user to authenticate/rate-limit")
                 return@withContext null
             }
             try {
+                val token = user.getIdToken(false).await().token
+                    ?: return@withContext null
                 val request = GroqChatRequest(
                     model = GROQ_DEFAULT_TEXT_MODEL,
                     messages = listOf(
@@ -34,7 +39,7 @@ object GroqManager {
                     )
                 )
                 val response = GroqRetrofitClient.service.chatCompletion(
-                    "Bearer ${BuildConfig.GROQ_API_KEY}",
+                    "Bearer $token",
                     request
                 )
                 response.choices?.firstOrNull()?.message?.content

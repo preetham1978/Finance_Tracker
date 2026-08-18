@@ -22,6 +22,12 @@ fun EditProfileDialog(
     var isLoading by remember { mutableStateOf(true) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var successMessage by remember { mutableStateOf<String?>(null) }
+    var showSubscriptionDialog by remember { mutableStateOf(false) }
+
+    if (showSubscriptionDialog) {
+        SubscriptionDialog(onDismiss = { showSubscriptionDialog = false })
+        return
+    }
 
     val user = FirebaseAuth.getInstance().currentUser
 
@@ -57,7 +63,7 @@ fun EditProfileDialog(
                 } else {
                     OutlinedTextField(
                         value = name,
-                        onValueChange = { 
+                        onValueChange = {
                             name = it
                             errorMessage = null
                             successMessage = null
@@ -69,7 +75,7 @@ fun EditProfileDialog(
                     Spacer(modifier = Modifier.height(12.dp))
                     OutlinedTextField(
                         value = mobile,
-                        onValueChange = { 
+                        onValueChange = {
                             mobile = it
                             errorMessage = null
                             successMessage = null
@@ -79,7 +85,15 @@ fun EditProfileDialog(
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
                     )
-                    
+
+                    Spacer(modifier = Modifier.height(12.dp))
+                    OutlinedButton(
+                        onClick = { showSubscriptionDialog = true },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Plans & Subscription")
+                    }
+
                     if (errorMessage != null) {
                         Spacer(modifier = Modifier.height(8.dp))
                         Text(errorMessage!!, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
@@ -102,7 +116,7 @@ fun EditProfileDialog(
                         errorMessage = "Please enter a valid mobile number."
                         return@TextButton
                     }
-                    
+
                     if (user != null) {
                         isLoading = true
                         coroutineScope.launch {
@@ -114,12 +128,12 @@ fun EditProfileDialog(
                                         "mobile" to mobile
                                     )
                                 ).await()
-                                
+
                                 val profileUpdates = com.google.firebase.auth.UserProfileChangeRequest.Builder()
                                     .setDisplayName(name)
                                     .build()
                                 user.updateProfile(profileUpdates).await()
-                                
+
                                 isLoading = false
                                 successMessage = "Profile updated successfully."
                                 kotlinx.coroutines.delay(1000)

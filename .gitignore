@@ -35,3 +35,11 @@ app/google-services.json
 Thumbs.db
 keystore.properties
 *.jks
+
+# Cloud Functions backend (functions/) - see README's "Backend proxy"
+# section. Keys are Firebase Functions secrets set via `firebase
+# functions:secrets:set`, never files in this repo.
+functions/node_modules/
+firebase-debug.log
+firebase-debug.*.log
+.firebase/

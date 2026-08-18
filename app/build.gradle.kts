@@ -7,6 +7,31 @@ if (keystorePropertiesFile.exists()) {
     keystoreProperties.load(FileInputStream(keystorePropertiesFile))
 }
 
+// Loads KEY=VALUE pairs from the project's .env file (see .env.example),
+// falling back to nothing if it doesn't exist -- .env is gitignored and
+// never committed. Added because System.getenv() alone only sees real OS
+// environment variables (like the GEMINI_API_KEY/GROQ_API_KEY set via
+// `setx` on Windows), so a value only ever placed in .env (like
+// BACKEND_BASE_URL) was silently never picked up by any build -- the app
+// kept building against the placeholder URL below with no error, which
+// looked like a flaky AI feature but was actually every network call
+// failing instantly and falling back to on-device/offline paths. Real env
+// vars still win if both are set, so CI/other machines aren't affected.
+val dotEnvFile = rootProject.file(".env")
+val dotEnvProperties = Properties()
+if (dotEnvFile.exists()) {
+    dotEnvFile.forEachLine { line ->
+        val trimmed = line.trim()
+        if (trimmed.isNotEmpty() && !trimmed.startsWith("#") && trimmed.contains("=")) {
+            val key = trimmed.substringBefore("=").trim()
+            val value = trimmed.substringAfter("=").trim()
+            dotEnvProperties.setProperty(key, value)
+        }
+    }
+}
+fun envOrDotEnv(key: String): String? =
+    System.getenv(key) ?: dotEnvProperties.getProperty(key)
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
@@ -28,12 +53,20 @@ android {
         vectorDrawables {
             useSupportLibrary = true
         }
-        val geminiKey = System.getenv("GEMINI_API_KEY") ?: ""
-        buildConfigField("String", "GEMINI_API_KEY", "\"$geminiKey\"") // force rebuild
-        // Free-tier Groq key (console.groq.com/keys), used as a fallback
-        // text-generation provider when Gemini fails -- see GroqApiService.kt.
-        val groqKey = System.getenv("GROQ_API_KEY") ?: ""
-        buildConfigField("String", "GROQ_API_KEY", "\"$groqKey\"")
+        // Base URL of the deployed backend proxy (see functions/index.js
+        // and README.md's "Backend proxy" section) -- e.g.
+        // "https://us-central1-your-project-id.cloudfunctions.net/".
+        // Gemini and Groq API keys used to be baked directly into this app
+        // as buildConfig fields (GEMINI_API_KEY / GROQ_API_KEY), which meant
+        // they shipped inside the compiled APK and were extractable by
+        // anyone who installed it. Both providers are now called through
+        // this Cloud Functions proxy instead: the real keys live only in
+        // the function's server-side secrets, and the app authenticates
+        // with a Firebase ID token that the backend verifies and uses for
+        // per-user rate limiting. See GeminiApiService.kt / GroqApiService.kt.
+        val backendBaseUrl = envOrDotEnv("BACKEND_BASE_URL")
+            ?: "https://us-central1-REPLACE_WITH_YOUR_PROJECT_ID.cloudfunctions.net/"
+        buildConfigField("String", "BACKEND_BASE_URL", "\"$backendBaseUrl\"")
     }
     signingConfigs {
         create("release") {
@@ -55,10 +88,9 @@ android {
             )
         }
         debug {
-            val geminiKey = System.getenv("GEMINI_API_KEY") ?: ""
-            buildConfigField("String", "GEMINI_API_KEY", "\"$geminiKey\"")
-            val groqKey = System.getenv("GROQ_API_KEY") ?: ""
-            buildConfigField("String", "GROQ_API_KEY", "\"$groqKey\"")
+            val backendBaseUrl = envOrDotEnv("BACKEND_BASE_URL")
+                ?: "https://us-central1-REPLACE_WITH_YOUR_PROJECT_ID.cloudfunctions.net/"
+            buildConfigField("String", "BACKEND_BASE_URL", "\"$backendBaseUrl\"")
         }
     }
     compileOptions {
@@ -114,6 +146,10 @@ dependencies {
     implementation(libs.mlkit.text.recognition)
     implementation(libs.firebase.analytics)
     implementation(libs.firebase.crashlytics)
+    // Google Play Billing -- Professional/Professional Plus subscription
+    // purchases. See BillingManager.kt and functions/index.js's
+    // verifyPlayPurchase (the server-side check that actually grants a tier).
+    implementation(libs.billing.ktx)
     testImplementation(libs.junit)
     testImplementation(libs.robolectric)
     testImplementation(libs.androidx.test.junit)

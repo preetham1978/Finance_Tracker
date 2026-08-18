@@ -1,9 +1,10 @@
 package com.example.data.api
 
 import android.util.Log
-import com.example.BuildConfig
 import com.example.data.Transaction
+import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
 import java.util.Locale
 import com.example.ui.components.CategoryHelper
@@ -11,9 +12,32 @@ import com.example.ui.components.CategoryHelper
 object GeminiManager {
     private const val TAG = "GeminiManager"
 
-    // Check if API key is present
+    // Cloud AI calls now go through our Firebase Cloud Functions proxy
+    // (functions/index.js) instead of hitting Gemini directly with an API
+    // key embedded in the app -- the real key lives server-side only now,
+    // and the backend rate-limits per signed-in Firebase user. That means
+    // "is cloud AI available" is now "is someone signed in", not "is a key
+    // present"; a bypass-login/local-only user falls straight through to
+    // on-device OCR / offline templates, same as if the network call had
+    // failed. See README.md's "Backend proxy" section for the deploy steps.
     fun isApiKeyAvailable(): Boolean {
-        return BuildConfig.GEMINI_API_KEY.isNotEmpty() && BuildConfig.GEMINI_API_KEY != "PLACEHOLDER_KEY"
+        return FirebaseAuth.getInstance().currentUser != null
+    }
+
+    /**
+     * Fresh Firebase ID token to authenticate with the backend proxy, or
+     * null if signed out or the token fetch itself failed (e.g. no
+     * network) -- callers treat null the same as any other failed call and
+     * fall through to their existing Groq/offline/OCR fallback.
+     */
+    private suspend fun currentIdToken(): String? {
+        val user = FirebaseAuth.getInstance().currentUser ?: return null
+        return try {
+            user.getIdToken(false).await().token
+        } catch (e: Exception) {
+            Log.w(TAG, "Could not fetch Firebase ID token for backend proxy call", e)
+            null
+        }
     }
 
     suspend fun getSpendInsights(transactions: List<Transaction>): String = withContext(Dispatchers.IO) {
@@ -56,7 +80,8 @@ object GeminiManager {
         )
 
         try {
-            val response = RetrofitClient.service.generateContent(BuildConfig.GEMINI_API_KEY, request)
+            val token = currentIdToken() ?: throw java.io.IOException("Not signed in to Firebase; cloud AI proxy requires an ID token")
+            val response = RetrofitClient.service.generateContent("Bearer $token", request)
             response.candidates?.firstOrNull()?.content?.parts?.firstOrNull()?.text
                 ?: "No insights could be generated. Please try again later."
         } catch (e: Exception) {
@@ -102,7 +127,8 @@ object GeminiManager {
         )
 
         try {
-            val response = RetrofitClient.service.generateContent(BuildConfig.GEMINI_API_KEY, request)
+            val token = currentIdToken() ?: throw java.io.IOException("Not signed in to Firebase; cloud AI proxy requires an ID token")
+            val response = RetrofitClient.service.generateContent("Bearer $token", request)
             response.candidates?.firstOrNull()?.content?.parts?.firstOrNull()?.text
                 ?: "Unable to generate AI tax plan. Please try again."
         } catch (e: Exception) {
@@ -136,10 +162,48 @@ object GeminiManager {
             Analyze the provided image which is a bill, receipt, or payment screenshot.
 
             Strictly extract the following data:
-            1. Merchant/Store Name
-            2. Total Amount (Number)
+            1. Merchant/Store Name -- the business's brand/shop name, usually the
+               most prominent logo/heading text at the very top of the receipt
+               (e.g. "MedPlus", "Reliance Fresh", "Starbucks"), NOT the full
+               registered legal entity name if one is separately printed in
+               parentheses (e.g. prefer "MedPlus" over "(A Unit of Optiven
+               Health Solutions Pvt Ltd)"). NEVER use any of the following as
+               the merchant name, even if blank/empty/just a dash "-": a GSTIN,
+               a DL (drug license) number, an FSSAI number, an invoice/bill/
+               order/serial number, a barcode, a customer/patient ID, a doctor's
+               name or registration number, or any other registration/reference
+               code. These are usually a mix of letters, digits and slashes
+               (e.g. "TN/TRW/21B/01072", "GSTIN: 33AAAAA0000A1Z5", "FSSAI No: -")
+               printed as a labeled field near the header, and are NEVER the
+               store's name even though they appear close to it or the label
+               itself contains letters that look name-like.
+            2. Total Amount (Number) -- the FINAL amount actually paid. Indian
+               retail/pharmacy invoices label this in several ways -- look for
+               "Total", "Grand Total", "Net Payable", "Amount Paid", "Total
+               Amount", or "Total Invoice Value" (this exact phrase is common
+               and easy to miss). This figure is almost always near the very
+               bottom of the receipt, often immediately followed by the same
+               amount spelled out in words (e.g. "One hundred Twenty two Rupees
+               Forty Paise") -- if that words line is present, use it to double
+               check your numeric answer matches it exactly, since it's the
+               most reliable confirmation available.
+               Do NOT use, even if they appear earlier or more prominently in
+               the image: a subtotal before discount/tax, the MRP or price of
+               any single line item, a "Total MRP Value" or "Total Savings"
+               figure, a tax/GST/CGST/SGST breakdown figure, or any number next
+               to a non-amount label such as "Invoice No", "Bill No", "DL No",
+               "GSTIN", "Order ID", "Store ID", "Cust ID", or a phone number
+               (phone numbers are long digit strings with no currency symbol or
+               decimal point -- never mistake one, or any part of one, for a
+               price). If several total-like numbers appear, use the LAST one
+               near the bottom -- that's what the customer actually paid.
             3. Category (Must be one of: "Food", "Shopping", "Bills & Utilities", "Entertainment", "Travel & Transport", "Health & Fitness", "Personal Loan", "Other")
-            4. Currency (e.g., "INR")
+            4. Currency -- the currency actually shown on the receipt. A "₹"
+               symbol, "Rs.", or "INR" all mean Indian Rupees -- output "INR"
+               for those, not "USD". Only use a different currency code if the
+               receipt clearly shows a different symbol or explicit code (e.g.
+               "$" or "USD" for US Dollars). When genuinely unsure, default to
+               "INR" rather than guessing "USD".
             5. Brief Summary of items or transaction purpose
 
             Output ONLY valid JSON matching this structure:
@@ -158,11 +222,16 @@ object GeminiManager {
                 Part(text = prompt),
                 Part(inlineData = InlineData(mimeType = "image/jpeg", data = billBase64))
             ))),
-            generationConfig = GenerationConfig(responseMimeType = "application/json")
+            // temperature = 0.0 -- receipts/statements have one correct reading, so we want
+            // Gemini's most likely answer every time, not creative sampling. Without this,
+            // scanning the exact same photo twice could return slightly different merchant
+            // names, totals, or categories, which is confusing and looked like a bug.
+            generationConfig = GenerationConfig(responseMimeType = "application/json", temperature = 0.0)
         )
 
         try {
-            val response = RetrofitClient.service.generateContent(BuildConfig.GEMINI_API_KEY, request)
+            val token = currentIdToken() ?: throw java.io.IOException("Not signed in to Firebase; cloud AI proxy requires an ID token")
+            val response = RetrofitClient.service.generateContent("Bearer $token", request)
             val jsonText = response.candidates?.firstOrNull()?.content?.parts?.firstOrNull()?.text
             if (jsonText != null) {
                 val startIndex = jsonText.indexOf('{')
@@ -241,11 +310,16 @@ object GeminiManager {
 
         val request = GenerateContentRequest(
             contents = listOf(Content(parts = listOf(Part(text = prompt)))),
-            generationConfig = GenerationConfig(responseMimeType = "application/json")
+            // temperature = 0.0 -- receipts/statements have one correct reading, so we want
+            // Gemini's most likely answer every time, not creative sampling. Without this,
+            // scanning the exact same photo twice could return slightly different merchant
+            // names, totals, or categories, which is confusing and looked like a bug.
+            generationConfig = GenerationConfig(responseMimeType = "application/json", temperature = 0.0)
         )
 
         try {
-            val response = RetrofitClient.service.generateContent(BuildConfig.GEMINI_API_KEY, request)
+            val token = currentIdToken() ?: throw java.io.IOException("Not signed in to Firebase; cloud AI proxy requires an ID token")
+            val response = RetrofitClient.service.generateContent("Bearer $token", request)
             val jsonText = response.candidates?.firstOrNull()?.content?.parts?.firstOrNull()?.text
             if (jsonText != null) {
                 val cleanJson = jsonText.trim().removeSurrounding("```json", "```").trim()
@@ -547,7 +621,8 @@ object GeminiManager {
         )
 
         try {
-            val response = RetrofitClient.service.generateContent(BuildConfig.GEMINI_API_KEY, request)
+            val token = currentIdToken() ?: throw java.io.IOException("Not signed in to Firebase; cloud AI proxy requires an ID token")
+            val response = RetrofitClient.service.generateContent("Bearer $token", request)
             val responseText = response.candidates?.firstOrNull()?.content?.parts?.firstOrNull()?.text?.trim()
             if (!responseText.isNullOrBlank()) {
                 val matched = CategoryHelper.expenseCategories.find {

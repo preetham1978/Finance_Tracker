@@ -45,6 +45,28 @@ service cloud.firestore {
         && sanitizeEmail(request.auth.token.email) == emailKey;
     }
 
+    // rateLimits/{uid} - per-user monthly call counters for the Gemini/Groq
+    // backend proxy (see functions/index.js). Written only by that Cloud
+    // Function via the Admin SDK, which bypasses these rules entirely, so
+    // no client should ever read or write it directly - a client that could
+    // reset or fake its own counter would defeat the whole point of
+    // rate-limiting. Falls through to the deny-all match below like
+    // everything else the app doesn't explicitly need client access to.
+
+    // subscriptions/{uid} - the user's current plan ("free" | "professional" |
+    // "professional_plus"). Written ONLY by the verifyPlayPurchase Cloud
+    // Function (via the Admin SDK, after actually validating a purchase
+    // with Google Play's server-to-server API) - never by the client
+    // directly. If a signed-in user could write their own tier here,
+    // anyone could grant themselves "professional_plus" for free just by
+    // calling the Firestore SDK, which defeats the entire point of having
+    // paid tiers. Read access is fine - the app needs to know its own
+    // current plan to show the right UI and upgrade prompts.
+    match /subscriptions/{uid} {
+      allow read: if isSignedIn() && request.auth.uid == uid;
+      allow write: if false;
+    }
+
     // Deny everything else by default - safer than an implicit allow for any path we haven't
     // explicitly reasoned about above.
     match /{document=**} {
